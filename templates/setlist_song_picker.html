@@ -1,0 +1,22 @@
+<div class="p-6 text-white">
+  <div class="flex items-start justify-between gap-4">
+    <div><h2 class="text-2xl font-bold">Adicionar a setlist</h2><p class="mt-1 text-sm text-gray-400">Escolha a setlist para esta música.</p></div>
+    <button type="button" data-modal-close class="w-8 h-8 rounded-full text-gray-300 hover:bg-gray-700 hover:text-white" title="Fechar"><i class="fas fa-times"></i></button>
+  </div>
+  <div id="setlist-add-message" class="mt-4 text-sm"></div>
+  {% if setlists.len() == 0 %}
+  <div class="mt-6 rounded-lg border border-dashed border-gray-600 p-5 text-center">
+    <p class="text-gray-300">Ainda não tem setlists.</p>
+    <button hx-get="/htmx/songs/{{ song_id }}/setlists/new" hx-target="#modal" hx-swap="innerHTML" class="mt-4 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-4 py-2 font-semibold">Criar setlist</button>
+  </div>
+  {% else %}
+  <div class="mt-5 space-y-2">
+    {% for setlist in setlists %}
+    <button hx-post="/htmx/setlists/{{ setlist.id }}/songs/{{ song_id }}" hx-target="#setlist-add-message" hx-swap="innerHTML" class="flex w-full items-center justify-between rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 text-left transition hover:border-purple-400 hover:bg-gray-700">
+      <span><span class="block font-semibold">{% if setlist.desc != "" %}{{ setlist.desc }}{% else %}Setlist {{ setlist.id }}{% endif %}</span><span class="text-sm text-gray-400">{{ setlist.song_count }} música{% if setlist.song_count != 1 %}s{% endif %}</span></span>
+      <i class="fas fa-plus text-purple-300"></i>
+    </button>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>

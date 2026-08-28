@@ -1,0 +1,98 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <header class="bg-gradient-to-r from-gray-800 via-gray-900 to-gray-800 shadow-lg border-b border-gray-700">
+    <div class="container mx-auto px-4 py-6">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <img src="/static/logo2.png" alt="PraiseChords Logo" class="w-16 h-16 rounded-lg shadow-lg" />
+          <div>
+            <h1 class="text-3xl font-bold text-white">PraiseChords</h1>
+            <p class="text-sm text-gray-300">Seu espaço para cifras e louvor</p>
+          </div>
+        </div>
+        <form method="post" action="/logout">
+          <button type="submit" class="bg-gray-600 hover:bg-gray-700 text-white text-sm py-1 px-3 rounded transition-colors">Logout</button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <main class="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+    <div class="container mx-auto px-4 py-12 max-w-7xl">
+      <section class="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-700 rounded-2xl shadow-2xl p-5 text-white mb-12">
+        <div class="absolute inset-0 opacity-10">
+          <div class="absolute top-0 left-0 w-32 h-32 bg-white rounded-full -translate-x-16 -translate-y-16"></div>
+          <div class="absolute bottom-0 right-1/3 w-16 h-16 bg-white rounded-full translate-y-8"></div>
+        </div>
+        <div class="relative flex flex-col lg:flex-row items-center justify-between gap-4">
+          <div class="flex-1 text-center lg:text-left">
+            <div class="flex items-center justify-center lg:justify-start gap-3 mb-3">
+              <div class="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center border-4 border-white/30"><span class="text-xl font-bold">{{ initials }}</span></div>
+              <div><h2 class="text-2xl lg:text-3xl font-bold mb-1">Olá, {{ first_name }}! 👋</h2><p class="text-blue-100 text-sm">Pronto para tocar?</p></div>
+            </div>
+            <div class="flex flex-wrap justify-center lg:justify-start gap-3"><div class="inline-flex bg-white/10 px-3 py-1.5 rounded-full border border-white/20"><span class="text-xs font-medium text-blue-100">Perfil:</span><span class="ml-2 font-semibold">{{ profile_label }}</span></div>{% if church != "" %}<div class="inline-flex bg-white/10 px-3 py-1.5 rounded-full border border-white/20"><span class="text-xs font-medium text-blue-100">Igreja:</span><span class="ml-2 font-semibold">{{ church }}</span></div>{% endif %}</div>
+          </div>
+          <div class="flex gap-3">
+            <div class="bg-white/10 rounded-xl p-3 text-center border border-white/20"><div class="text-xl font-bold">{{ song_count }}</div><div class="text-xs text-blue-100">Cifras</div></div>
+            <div class="bg-white/10 rounded-xl p-3 text-center border border-white/20"><div class="text-xl font-bold">{{ setlist_count }}</div><div class="text-xs text-blue-100">Setlists</div></div>
+            <div class="bg-white/10 rounded-xl p-3 text-center border border-white/20"><div class="text-xl font-bold">{{ favorite_count }}</div><div class="text-xs text-blue-100">Favoritas</div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-12">
+        <h3 class="text-2xl font-bold text-white mb-6">Ações Rápidas</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <a href="#buscar-cifras" hx-get="/htmx/songs" hx-target="#songs-list" hx-swap="innerHTML" class="quick-action-card bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-6 text-left"><div class="text-3xl mb-3">🔍</div><h4 class="font-semibold text-white mb-1">Explorar</h4><p class="text-blue-100 text-sm">Descubra novas cifras</p></a>
+          <a href="/favorites" class="quick-action-card bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-6"><div class="text-3xl mb-3">❤️</div><h4 class="font-semibold text-white mb-1">Favoritas</h4><p class="text-purple-100 text-sm">Suas músicas preferidas</p></a>
+          <a href="#setlists-section" class="quick-action-card bg-gradient-to-br from-pink-500 to-pink-600 rounded-lg p-6 text-left"><div class="text-3xl mb-3">📋</div><h4 class="font-semibold text-white mb-1">Setlists</h4><p class="text-pink-100 text-sm">Organize seus repertórios</p></a>
+          <a href="/most-viewed" class="quick-action-card bg-gradient-to-br from-green-500 to-green-600 rounded-lg p-6"><div class="text-3xl mb-3">🔥</div><h4 class="font-semibold text-white mb-1">Mais Acessadas</h4><p class="text-green-100 text-sm">Populares entre todos</p></a>
+          {% if is_admin %}
+          <a href="#nova-musica" hx-get="/htmx/songs/new" hx-target="#modal" hx-swap="innerHTML" class="quick-action-card bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg p-6 text-left"><div class="text-3xl mb-3">➕</div><h4 class="font-semibold text-white mb-1">Nova Música</h4><p class="text-emerald-100 text-sm">Adicionar uma nova cifra</p></a>
+          {% endif %}
+          {% if is_programmer %}
+          <a href="/users/manage" class="quick-action-card bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg p-6"><div class="text-3xl mb-3">👥</div><h4 class="font-semibold text-white mb-1">Utilizadores</h4><p class="text-indigo-100 text-sm">Criar e gerir utilizadores</p></a>
+          <a href="/statistics" class="quick-action-card bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg p-6"><div class="text-3xl mb-3">📊</div><h4 class="font-semibold text-white mb-1">Estatísticas</h4><p class="text-amber-100 text-sm">Utilizadores da plataforma</p></a>
+          {% endif %}
+        </div>
+      </section>
+
+      <section id="buscar-cifras" class="mb-12 bg-gray-800/50 rounded-xl p-6 border border-gray-700/50">
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-6 shadow-xl" x-data="searchBox()">
+          <div class="flex items-center gap-3 mb-6"><div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white text-xl">⌕</div><h2 class="text-2xl font-bold text-white">Buscar Cifras</h2></div>
+          <form id="search-controls" hx-get="/htmx/songs/search" hx-target="#songs-list" hx-trigger="submit" x-data="{ filtersOpen: false, filter: 'all', sort: 'recent', type: '', fav: '' }" class="space-y-4">
+          <div class="relative">
+            <input id="search-input" name="q" type="search" placeholder="Procurar ..." class="w-full px-6 py-4 pr-32 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400" hx-get="/htmx/songs/search" hx-include="#search-controls" hx-target="#songs-list" hx-trigger="input delay:400ms" x-ref="searchInput" @keydown.enter.prevent="add($event.target.value)" />
+            <div class="absolute right-2 top-2 flex gap-2"><button type="button" @click="filtersOpen = !filtersOpen" class="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20" title="Filtros avançados">⌄</button><button type="submit" @click="add($refs.searchInput.value)" class="px-3 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg" title="Pesquisar">⌕</button></div>
+          </div>
+          <input type="hidden" name="filter" :value="filter" />
+          <input type="hidden" name="sort" :value="sort" />
+          <input type="hidden" name="type" :value="type" />
+          <input type="hidden" name="fav" :value="fav" />
+          <div x-show="filtersOpen" x-cloak class="bg-white/5 border border-white/10 rounded-xl p-4">
+            <h3 class="text-white font-medium mb-3">Filtros Avançados</h3>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3"><button type="button" @click="filter='all'; htmx.trigger($el.closest('form'), 'submit')" :class="filter === 'all' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-gray-300'" class="px-3 py-2 text-sm rounded-lg border">🎵 Título</button><button type="button" @click="filter='org_name'; htmx.trigger($el.closest('form'), 'submit')" :class="filter === 'org_name' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-gray-300'" class="px-3 py-2 text-sm rounded-lg border">📝 Original</button><button type="button" @click="filter='artistas'; htmx.trigger($el.closest('form'), 'submit')" :class="filter === 'artistas' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-gray-300'" class="px-3 py-2 text-sm rounded-lg border">🎤 Artista</button><button type="button" @click="filter='composer'; htmx.trigger($el.closest('form'), 'submit')" :class="filter === 'composer' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-gray-300'" class="px-3 py-2 text-sm rounded-lg border">✍️ Autor</button><button type="button" @click="filter='lyrics'; htmx.trigger($el.closest('form'), 'submit')" :class="filter === 'lyrics' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-gray-300'" class="px-3 py-2 text-sm rounded-lg border">📄 Letra</button></div>
+          </div>
+          <div class="flex flex-wrap gap-2 items-center"><span class="text-sm text-gray-400 mr-1">Ordenar:</span><button type="button" @click="sort='recent'; htmx.trigger($el.closest('form'), 'submit')" :class="sort === 'recent' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-gray-300'" class="px-3 py-1 text-xs rounded-full border">Recentes</button><button type="button" @click="sort='alpha'; htmx.trigger($el.closest('form'), 'submit')" :class="sort === 'alpha' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-gray-300'" class="px-3 py-1 text-xs rounded-full border">Alfabética</button><button type="button" @click="fav = (fav === '1' ? '' : '1'); $nextTick(() => htmx.trigger($el.closest('form'), 'submit'))" :class="fav === '1' ? 'bg-yellow-400/20 border-yellow-400 text-yellow-300' : 'bg-white/5 border-white/10 text-gray-300'" class="px-3 py-1 text-xs rounded-full border" title="Mostrar apenas as minhas favoritas">★ Favoritos</button></div>
+          <div class="flex flex-wrap gap-2 items-center mt-2"><span class="text-sm text-gray-400 mr-1">Tipo:</span><button type="button" @click="type=''; $nextTick(() => htmx.trigger($el.closest('form'), 'submit'))" :class="type === '' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-gray-300'" class="px-3 py-1 text-xs rounded-full border">Todos</button>{% for g in genres %}<button type="button" @click="type='{{ g.id }}'; $nextTick(() => htmx.trigger($el.closest('form'), 'submit'))" :class="type === '{{ g.id }}' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-gray-300'" class="px-3 py-1 text-xs rounded-full border">{{ g.desc }}</button>{% endfor %}</div>
+          <div x-show="sort === 'alpha'" x-cloak class="flex flex-wrap gap-2 text-sm"><button type="submit" name="letter" value="" class="px-3 py-1 bg-white/10 rounded-lg">Todas</button>{% for letter in ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"] %}<button type="submit" name="letter" value="{{ letter }}" class="w-8 h-8 bg-white/10 hover:bg-blue-500/30 rounded-lg">{{ letter }}</button>{% endfor %}</div>
+          </form>
+          <div class="mt-4 text-sm text-gray-300" x-show="history.length > 0">
+      <div class="flex items-center justify-between">
+        <div>Histórico:</div>
+        <button @click="clear()" class="text-xs text-red-400">Limpar histórico</button>
+      </div>
+      <div class="flex flex-wrap gap-2 mt-1">
+        <template x-for="item in history" :key="item">
+          <button @click="set(item)" class="px-2 py-1 bg-white/10 rounded text-sm" x-text="item"></button>
+        </template>
+      </div>
+    </div>
+          </div>
+          <div id="songs-list" class="mt-2" hx-get="/htmx/songs/search" hx-include="#search-controls" hx-target="#songs-list" hx-swap="innerHTML" hx-trigger="load"><div class="bg-gray-800/60 border border-gray-700/50 rounded-xl"><h2 class="text-lg font-bold text-blue-400 px-4 pt-4 mb-2">Resultados da Pesquisa</h2><p class="text-center text-gray-400 py-8 px-4 pb-6">A carregar músicas recentes...</p></div></div>
+      </section>
+      <section id="setlists-section" class="mb-12 bg-gray-800/50 rounded-xl p-6 border border-gray-700/50"><div class="bg-white/5 border border-white/10 rounded-2xl p-6 shadow-xl"><div class="mt-2 bg-gray-800/60 border border-gray-700/50 rounded-xl"><div id="setlists-content" hx-get="/htmx/setlists" hx-trigger="load" hx-swap="innerHTML"><p class="text-center text-gray-400 py-8">A carregar setlists...</p></div></div></div></section>
+    </div>
+  </main>
+{% endblock %}

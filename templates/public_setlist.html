@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <main class="min-h-screen p-4 md:p-8">
+    <div class="mx-auto max-w-3xl">
+      <div class="mb-6 rounded-xl bg-gradient-to-r from-violet-600 to-purple-700 p-6">
+        <h1 class="text-2xl font-bold text-white">
+          {% if setlist.desc != "" %}{{ setlist.desc }}{% else %}Setlist Partilhada{% endif %}
+        </h1>
+        <p class="mt-1 text-sm text-violet-100">{{ songs.len() }} música{% if songs.len() != 1 %}s{% endif %}</p>
+      </div>
+
+      {% if songs.len() == 0 %}
+        <p class="py-8 text-center text-gray-400">Nenhuma música nesta setlist.</p>
+      {% else %}
+        <ul class="space-y-3">
+          {% for s in songs %}
+            <li>
+              <a href="/share/{{ token }}/{{ loop.index }}" class="flex items-center justify-between gap-3 rounded-lg bg-gray-800 p-4 transition hover:bg-gray-700">
+                <div class="flex min-w-0 items-center gap-3">
+                  <span class="w-8 text-lg font-bold text-violet-400">{{ loop.index }}</span>
+                  <div class="min-w-0">
+                    <p class="truncate font-semibold text-white">{{ s.name }}</p>
+                    <p class="truncate text-sm text-gray-400">{{ s.org_name }}{% if s.composer != "" %} · {{ s.composer }}{% endif %}</p>
+                  </div>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                  {% if let Some(youtube_url) = s.youtube %}
+                    <span class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-600 text-gray-300">
+                      <i class="fab fa-youtube text-sm"></i>
+                    </span>
+                  {% endif %}
+                  <span class="flex h-8 w-8 items-center justify-center rounded bg-violet-600 text-white">
+                    <i class="fas fa-play text-sm"></i>
+                  </span>
+                </div>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <div class="mt-8 text-center text-sm text-gray-500">
+        <p>Partilhado via PraiseChords</p>
+      </div>
+    </div>
+  </main>
+{% endblock %}

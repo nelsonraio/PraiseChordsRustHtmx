@@ -1,0 +1,38 @@
+ChordPro
+{t:Sublime (Ao Vivo)}
+{st: FHOP}
+
+{inline:[D]  [Bm]  [A]  [G]}
+
+Q[D]uem ├® como T[Bm]u, Jes[A]us
+N├úo h├í[G] ningu├®m al├®m de Ti[D]
+Que ├® manso [Bm]e humilde assi[A]m
+N├úo h[G]├í ningu├®m igual a [G]Ti[A][D/F#]
+N├úo [Bm]h├í[A]
+
+{soc: Coro}
+Maravilh[G]oso, admir├í[A]vel
+T├úo sub[D/F#]lime, glori[Bm]oso[A]
+Tua pre[G]sen├ºa ├® mais desej[A]├ível do que o[D/F#] ouro
+Melhor que a [Bm]vida ├® o te[A]u amor
+{eoc}
+
+{inline: [G]}
+
+{c: -->estrofe e coro 2x}
+
+{inline:[G]  [A]  [D/F#]  [Bm]  [A] }
+{inline:[G]  [A]  [D/F#]  [Bm]  [A] }
+
+{sop: Ponte}
+[Em]Ah, como esp[D]ero o [A]dia
+Em que v[Em]erei a f[D]ace do meu am[A]ado
+[Em]Ah, como esp[D]ero o [A]dia
+Em que a ale[Em]gria enf[D]im ser├í com[A]pleta
+(Repete)
+{eop}
+
+{c:--> Coro, Ponte 2x}
+{c:--> Coro}
+
+(1 row)

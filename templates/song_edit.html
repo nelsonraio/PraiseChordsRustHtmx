@@ -1,0 +1,148 @@
+<div x-data="{
+  cifraOriginal: '',
+  chordPro: '',
+  preview: '',
+  viewMode: 'preview',
+  convertTimer: null,
+  convert() {
+    clearTimeout(this.convertTimer);
+    this.convertTimer = setTimeout(() => {
+      if (window.cifraToChordPro) {
+        this.chordPro = window.cifraToChordPro(this.cifraOriginal);
+      } else {
+        this.chordPro = this.cifraOriginal;
+      }
+      this.renderPreview();
+    }, 300);
+  },
+  renderPreview() {
+    this.preview = window.parseChordPro2 ? window.parseChordPro2(this.chordPro, 0, 1) : '';
+  },
+  toggleView() { this.viewMode = this.viewMode === 'preview' ? 'chordpro' : 'preview'; },
+  insertTag(type) {
+    const ta = this.$refs.chordPro;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selectedText = this.chordPro.substring(start, end);
+    const before = this.chordPro.substring(0, start);
+    const after = this.chordPro.substring(end);
+    let tag = '';
+    let cursorOffset = 0;
+    switch (type) {
+      case 'soc':
+        if (selectedText.trim()) {
+          tag = `{soc: ${selectedText}}`;
+          cursorOffset = 0;
+        } else {
+          tag = '{soc: }';
+          cursorOffset = -1;
+        }
+        break;
+      case 'eoc':
+        tag = '{eoc}';
+        break;
+      case 'sop':
+        if (selectedText.trim()) {
+          tag = `{sop: ${selectedText}}`;
+          cursorOffset = 0;
+        } else {
+          tag = '{sop: }';
+          cursorOffset = -1;
+        }
+        break;
+      case 'eop':
+        tag = '{eop}';
+        break;
+      case 'inline':
+        if (selectedText.trim()) {
+          tag = `{inline: ${selectedText}}`;
+          cursorOffset = 0;
+        } else {
+          tag = '{inline: }';
+          cursorOffset = -1;
+        }
+        break;
+      case 't':
+        if (selectedText.trim()) {
+          tag = `{t: ${selectedText}}`;
+          cursorOffset = 0;
+        } else {
+          tag = '{t: }';
+          cursorOffset = -1;
+        }
+        break;
+      case 'st':
+        if (selectedText.trim()) {
+          tag = `{st: ${selectedText}}`;
+          cursorOffset = 0;
+        } else {
+          tag = '{st: }';
+          cursorOffset = -1;
+        }
+        break;
+      case 'c':
+        if (selectedText.trim()) {
+          tag = `{c: ${selectedText}}`;
+          cursorOffset = 0;
+        } else {
+          tag = '{c: }';
+          cursorOffset = -1;
+        }
+        break;
+      default:
+        return;
+    }
+    this.chordPro = before + tag + after;
+    this.$nextTick(() => {
+      const newPos = start + tag.length + cursorOffset;
+      ta.setSelectionRange(newPos, newPos);
+      ta.focus();
+      this.renderPreview();
+    });
+  },
+  init() {
+    if (!window.cifraToChordPro) {
+      var s1 = document.createElement('script');
+      s1.src = '/static/chordsheetjs.min.js';
+      s1.onload = function() {
+        if (typeof ChordSheetJS !== 'undefined' && !window.ChordSheetJS) window.ChordSheetJS = ChordSheetJS;
+        var s2 = document.createElement('script');
+        s2.src = '/static/cifra2chordpro.js';
+        document.head.appendChild(s2);
+      };
+      document.head.appendChild(s1);
+    }
+  }
+}" x-init="chordPro = $refs.chordPro.value; renderPreview()" class="p-6 text-white">
+  <div class="mb-6 flex items-start justify-between gap-4"><div><h2 class="text-2xl font-bold">Editar Música</h2><p class="mt-1 text-sm text-gray-400">{{ song.title }}</p></div><button type="button" data-modal-close class="rounded bg-gray-700 px-4 py-2 hover:bg-gray-600">Cancelar</button></div>
+  <form hx-post="/htmx/songs/{{ song.id }}/edit" hx-target="#song-edit-message" hx-swap="innerHTML" class="space-y-6">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Nome da Música<input name="name" value="{{ song.name }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Nome da música" /></label><label class="block text-sm font-medium text-gray-300">Nome Original<input name="org_name" value="{{ song.org_name }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Nome original" /></label></div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Compositor<input name="composer" value="{{ song.composer }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" /></label><label class="block text-sm font-medium text-gray-300">Artistas<input name="artistas" value="{{ song.artistas }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" /></label></div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3"><label class="block text-sm font-medium text-gray-300">Tom Original<input name="org_key" value="{{ song.org_key }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Ex: C, D, Em" /></label><label class="block text-sm font-medium text-gray-300">Tempo<input name="org_tempo" type="number" value="{{ song.org_tempo }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="BPM" /></label><label class="block text-sm font-medium text-gray-300">Género<select name="genre_type" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black"><option value="">Selecionar género</option>{% for genre in genres %}<option value="{{ genre.id }}"{% if genre.selected %} selected{% endif %}>{{ genre.name }}</option>{% endfor %}</select></label></div>
+    <label class="block text-sm font-medium text-gray-300">Link do YouTube<input name="youtube" value="{{ song.youtube }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="ID ou link do vídeo do YouTube" /></label>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Copyright<input name="copyright" value="{{ song.copyright }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" /></label><label class="block text-sm font-medium text-gray-300">Temas<input name="themes" value="{{ song.themes }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" /></label></div>
+    <label class="block text-sm font-medium text-gray-300">Cifra Original<textarea x-model="cifraOriginal" @input="convert()" rows="10" style="text-align: left;" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 font-mono text-sm text-black text-left" placeholder="Cole aqui a cifra original (ex.: formato CifraClub) para converter para ChordPro..."></textarea><span class="mt-1 block text-xs text-gray-400">Ao colar, a cifra é convertida automaticamente para o formato ChordPro (que fica editável e é o que será gravado).</span></label>
+    <section class="rounded-lg border border-gray-600 bg-white p-1">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3 py-2"><span class="text-sm font-medium text-gray-700">Cifra em ChordPro</span><button type="button" @click="toggleView()" class="rounded bg-blue-600 px-3 py-1 text-sm font-semibold text-white hover:bg-blue-700" x-text="viewMode === 'preview' ? 'Ver ChordPro' : 'Ver Pré-visualização'"></button></div>
+      <div x-show="viewMode === 'chordpro'" class="p-2">
+        <div class="mb-2 flex flex-wrap items-center gap-1">
+          <span class="text-xs font-medium text-gray-500 mr-1">Atalhos:</span>
+          <button type="button" @click="insertTag('soc')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="Start of Chorus">{soc : }</button>
+          <button type="button" @click="insertTag('eoc')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="End of Chorus">{eoc}</button>
+          <button type="button" @click="insertTag('sop')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="Start of Paragraph">{sop: }</button>
+          <button type="button" @click="insertTag('eop')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="End of Paragraph">{eop}</button>
+          <button type="button" @click="insertTag('inline')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="Texto inline/anotação">{inline: }</button>
+          <button type="button" @click="insertTag('t')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="Título/Translation">{t: }</button>
+          <button type="button" @click="insertTag('st')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="Subtítulo">{st: }</button>
+          <button type="button" @click="insertTag('c')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="Comentário">{c: }</button>
+        </div>
+        <textarea x-ref="chordPro" x-model="chordPro" @input="renderPreview()" name="chord_pro" rows="12" style="text-align: left;" class="w-full rounded border border-gray-300 bg-white px-4 py-2 font-mono text-sm text-black text-left" placeholder="[Acorde]letra ...">{{ song.chord_pro }}</textarea>
+        <p class="mt-1 px-1 text-xs text-gray-500">Pce corrigir aqui qualquer pormenor do ChordPro convertido.</p>
+      </div>
+      <div x-show="viewMode === 'preview'" class="p-2"><div class="chord-container max-h-96 overflow-auto bg-white" x-html="preview"></div></div>
+    </section>
+    <textarea name="lyrics" class="hidden">{{ song.lyrics }}</textarea>
+    <div id="song-edit-message" class="text-sm"></div><div class="flex gap-3"><button type="submit" class="flex-1 rounded bg-blue-600 px-6 py-3 font-semibold hover:bg-blue-700">Guardar Alterações</button><button type="button" data-modal-close class="flex-1 rounded bg-gray-700 px-6 py-3 font-semibold hover:bg-gray-600">Cancelar</button></div>
+  </form>
+</div>

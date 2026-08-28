@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="static/chordpro.css">
+<style>
+  body { margin:20px; font-family: monospace; background:#f0f0f0; }
+  .box { background:#fff; padding:15px; margin:10px 0; border:1px solid #ccc; }
+  .raw { background:#f8f8f8; padding:8px; font-size:11px; white-space:pre-wrap; max-height:400px; overflow:auto; }
+</style>
+</head>
+<body>
+<h1>Teste EXATO: Sublime (ChordPro real do banco)</h1>
+<div class="box">
+  <h3>ChordPro Original:</h3>
+  <div class="raw" id="raw">{t:Sublime (Ao Vivo)}
+{st: FHOP}
+
+{inline:[D]  [Bm]  [A]  [G]}
+
+Q[D]uem ├® como T[Bm]u, Jes[A]us
+N├úo h├í[G] ningu├®m al├®m de Ti[D]
+Que ├® manso [Bm]e humilde assi[A]m
+N├úo h[G]├í ningu├®m igual a [G]Ti[A][D/F#]
+N├úo [Bm]h├í[A]
+
+{soc: Coro}
+Maravilh[G]oso, admir[A]vel
+T├úo sub[D/F#]lime, glori[Bm]oso[A]
+Tua pre[G]sen├ºa ├® mais desej[A]├¡vel do que o[D/F#] ouro
+Melhor que a [Bm]vida ├® o te[A]u amor
+{eoc}
+
+{inline: [G]}
+
+{c: --&gt;estrofe e coro 2x}
+
+{inline:[G]  [A]  [D/F#]  [Bm]  [A] }
+{inline:[G]  [A]  [D/F#]  [Bm]  [A] }
+
+{sop: Ponte}
+[Em]Ah, como esp[D]ero o [A]dia
+Em que v[Em]erei a f[D]ace do meu am[A]ado
+[Em]Ah, como esp[D]ero o [A]dia
+Em que a ale[Em]gria enf[D]im ser[A]├í com[A]pleta
+(Repete)
+{eop}
+
+{c:--&gt; Coro, Ponte 2x}
+{c:--&gt; Coro}</div>
+</div>
+<div class="box">
+  <h3>Renderiza├º├úo:</h3>
+  <div id="output" class="chord-container"><div class="t resize">Sublime (Ao Vivo)</div><div class="section"><div class="st resize">FHOP</div><div class="textonly resize"></div><div class="inline-block"><div class="inline resize">D  Bm  A  G</div></div><div class="textonly resize"></div><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric">Q</span></span><span class="chord-block"><span class="chord">D</span><span class="lyric">uem ├® como T</span></span></span><span class="chord-block"><span class="chord">Bm</span><span class="lyric">u, Jes</span></span><span class="chord-block"><span class="chord">A</span><span class="lyric">us </span></span></div><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric">N├úo h├í</span></span><span class="chord-block"><span class="chord">G</span><span class="lyric"> ningu├®m al├®m de Ti</span></span></span><span class="chord-block"><span class="chord">D</span><span class="lyric"> </span></span></div><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric">Que ├® manso </span></span><span class="chord-block"><span class="chord">Bm</span><span class="lyric">e humilde assi</span></span></span><span class="chord-block"><span class="chord">A</span><span class="lyric">m </span></span></div><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric">N├úo h</span></span><span class="chord-block"><span class="chord">G</span><span class="lyric">├í ningu├®m igual a </span></span></span><span class="chord-block"><span class="chord">G</span><span class="lyric">Ti</span></span><span class="chord-block"><span class="chord">A</span><span class="lyric"> </span></span><span class="chord-block"><span class="chord">D/F#</span><span class="lyric"> </span></span></div><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric">N├úo </span></span><span class="chord-block"><span class="chord">Bm</span><span class="lyric">h├í</span></span></span><span class="chord-block"><span class="chord">A</span><span class="lyric"> </span></span></div><div class="textonly resize"></div><div class="block block-soc"><span class="BlkText resize">Coro</span><div class="soc resize"><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric">Maravilh</span></span><span class="chord-block"><span class="chord">G</span><span class="lyric">oso, admir</span></span></span><span class="chord-block"><span class="chord">A</span><span class="lyric">vel </span></span></div><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric">T├úo sub</span></span><span class="chord-block"><span class="chord">D/F#</span><span class="lyric">lime, glori</span></span></span><span class="chord-block"><span class="chord">Bm</span><span class="lyric">oso</span></span><span class="chord-block"><span class="chord">A</span><span class="lyric"> </span></span></div><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric">Tua pre</span></span><span class="chord-block"><span class="chord">G</span><span class="lyric">sen├ºa ├® mais desej</span></span></span><span class="chord-block"><span class="chord">A</span><span class="lyric">├¡vel do que o</span></span><span class="chord-block"><span class="chord">D/F#</span><span class="lyric"> ouro </span></span></div><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric">Melhor que a </span></span><span class="chord-block"><span class="chord">Bm</span><span class="lyric">vida ├® o te</span></span></span><span class="chord-block"><span class="chord">A</span><span class="lyric">u amor </span></span></div></div></div><div class="textonly resize"></div><div class="inline-block"><div class="inline resize">G</div></div><div class="textonly resize"></div><div class="comment-block"><div class="c resize">ÔåÆestrofe e coro 2x</div></div><div class="textonly resize"></div><div class="inline-block"><div class="inline resize">G  A  D/F#  Bm  A </div><div class="inline resize">G  A  D/F#  Bm  A </div></div><div class="textonly resize"></div><div class="block block-sop"><span class="BlkText resize">Ponte</span><div class="sop resize"><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric"> </span></span><span class="chord-block"><span class="chord">Em</span><span class="lyric">Ah, como esp</span></span></span><span class="chord-block"><span class="chord">D</span><span class="lyric">ero o </span></span><span class="chord-block"><span class="chord">A</span><span class="lyric">dia </span></span></div><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric">Em que v</span></span><span class="chord-block"><span class="chord">Em</span><span class="lyric">erei a f</span></span></span><span class="chord-block"><span class="chord">D</span><span class="lyric">ace do meu am</span></span><span class="chord-block"><span class="chord">A</span><span class="lyric">ado </span></span></div><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric"> </span></span><span class="chord-block"><span class="chord">Em</span><span class="lyric">Ah, como esp</span></span></span><span class="chord-block"><span class="chord">D</span><span class="lyric">ero o </span></span><span class="chord-block"><span class="chord">A</span><span class="lyric">dia </span></span></div><div class="chordline"><span class="keep-together"><span class="chord-block"><span class="chord"></span><span class="lyric">Em que a ale</span></span><span class="chord-block"><span class="chord">Em</span><span class="lyric">gria enf</span></span></span><span class="chord-block"><span class="chord">D</span><span class="lyric">im ser</span></span><span class="chord-block"><span class="chord">A</span><span class="lyric">├í com</span></span><span class="chord-block"><span class="chord">A</span><span class="lyric">pleta </span></span></div><div class="textonly resize">(Repete)</div></div></div><div class="textonly resize"></div><div class="comment-block"><div class="c resize">ÔåÆ Coro, Ponte 2x</div><div class="c resize">ÔåÆ Coro</div></div></div></div>
+</div>
+<script src="static/chord-parser.js"></script>
+<script>
+  var cp = `{t:Sublime (Ao Vivo)}
+{st: FHOP}
+
+{inline:[D]  [Bm]  [A]  [G]}
+
+Q[D]uem ├® como T[Bm]u, Jes[A]us
+N├úo h├í[G] ningu├®m al├®m de Ti[D]
+Que ├® manso [Bm]e humilde assi[A]m
+N├úo h[G]├í ningu├®m igual a [G]Ti[A][D/F#]
+N├úo [Bm]h├í[A]
+
+{soc: Coro}
+Maravilh[G]oso, admir[A]vel
+T├úo sub[D/F#]lime, glori[Bm]oso[A]
+Tua pre[G]sen├ºa ├® mais desej[A]├¡vel do que o[D/F#] ouro
+Melhor que a [Bm]vida ├® o te[A]u amor
+{eoc}
+
+{inline: [G]}
+
+{c: -->estrofe e coro 2x}
+
+{inline:[G]  [A]  [D/F#]  [Bm]  [A] }
+{inline:[G]  [A]  [D/F#]  [Bm]  [A] }
+
+{sop: Ponte}
+[Em]Ah, como esp[D]ero o [A]dia
+Em que v[Em]erei a f[D]ace do meu am[A]ado
+[Em]Ah, como esp[D]ero o [A]dia
+Em que a ale[Em]gria enf[D]im ser[A]├í com[A]pleta
+(Repete)
+{eop}
+
+{c:--> Coro, Ponte 2x}
+{c:--> Coro}`;
+  
+  document.getElementById('raw').textContent = cp;
+  document.getElementById('output').innerHTML = window.parseChordPro2(cp, 0, 0);
+</script>
+
+</body></html>

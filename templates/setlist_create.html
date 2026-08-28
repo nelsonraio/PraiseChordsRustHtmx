@@ -1,0 +1,10 @@
+<div class="p-6 text-white">
+  <h2 class="text-2xl font-bold">Nova Setlist</h2>
+  <p class="text-sm text-gray-400 mt-1 mb-5">Organize um novo repertório.</p>
+  <form hx-post="/api/setlists" hx-target="#setlist-form-message" hx-swap="innerHTML" class="space-y-4">
+    <input name="desc" required maxlength="50" placeholder="Nome da setlist" class="w-full p-3 bg-gray-900 border border-gray-700 rounded-lg text-white" />
+    <input name="id_grupo" type="hidden" value="0" />
+    <div id="setlist-form-message" class="text-sm"></div>
+    <div class="flex justify-end gap-3"><button type="button" data-modal-close class="px-4 py-2 bg-gray-700 rounded-lg">Cancelar</button><button type="submit" class="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg">Criar</button></div>
+  </form>
+</div>

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="static/chordpro.css">
+    <style>
+        body { font-family: sans-serif; padding: 20px; background:#f5f5f5; }
+        h3 { margin: 24px 0 6px; }
+        .output { border: 1px solid #ccc; padding: 14px 16px; margin: 8px 0 4px; background:#fff; border-radius:6px; }
+        p.hint { color:#666; font-size:13px; margin-bottom:2px; }
+    </style>
+</head>
+<body>
+    <h2>Teste do visualizador de cifras</h2>
+    <p class="hint">Caso típico: sílaba sem acorde seguida de sílaba com acorde (era aqui que a sílaba anterior "pulava" para outra linha).</p>
+    <div id="output"></div>
+
+    <script src="static/chord-parser.js"></script>
+    <script>
+        const tests = {
+            '1. Sílaba sem acorde + acorde (bug corrigido)': `[E]Quem é como [C#m]Tu, [B]Jesus\n[G]Não há [D]ninguém além de [A]Ti`,
+            '2. Padrão inline simples': `[D]uem é como [Bm]Tu, [A]Jesus\n[G]Não há [D]ninguém além de Ti`,
+            '3. Acordes no início de frase': `[E]Qu\n[C#m]em é como [B]Tu, [A]Jesus`,
+            '4. Com acentos': `[E]Santo, [C#m]Santo é o [B]Senhor\n[A]Rei dos [E]reis, [F#m]Grande [B7]Deus`
+        };
+        let html = '';
+        for (const [name, input] of Object.entries(tests)) {
+            html += `<h3>${name}</h3><div class="output">` + window.parseChordPro2(input, 0, 0) + '</div>';
+        }
+        document.getElementById('output').innerHTML = html;
+    </script>
+</body>
+</html>

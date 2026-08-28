@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<style>
+  body { margin:20px; font-family: sans-serif; }
+  .test { border: 1px solid #ccc; padding: 10px; margin: 10px 0; background: #f9f9f9; }
+  .chord-block { display: inline-flex; flex-direction: column; vertical-align: bottom; margin: 0 2px; }
+  .chord { font-weight: bold; color: red; font-size: 0.8em; }
+  .lyric { font-size: 1em; }
+  .keep-together { display: inline-flex; flex-direction: row; white-space: nowrap; vertical-align: bottom; }
+  .chordline { display: block; margin: 5px 0; }
+</style>
+</head>
+<body>
+<h1>Debug: Parser + CSS</h1>
+<div class="test">
+  <h3>Linha 1: Q[D]uem ├® como T[Bm]u</h3>
+  <div class="chord-container">
+    <div class="chordline">
+      <span class="keep-together">
+        <span class="chord-block"><span class="chord"></span><span class="lyric">Q</span></span>
+        <span class="chord-block"><span class="chord">D</span><span class="lyric">uem ├® como T</span></span>
+      </span>
+      <span class="chord-block"><span class="chord">Bm</span><span class="lyric">u</span></span>
+    </div>
+  </div>
+</div>
+<div class="test">
+  <h3>Linha 2: N├úo h├í[G] ningu├®m al├®m de Ti[D]</h3>
+  <div class="chord-container">
+    <div class="chordline">
+      <span class="keep-together">
+        <span class="chord-block"><span class="chord"></span><span class="lyric">N├úo h├í</span></span>
+        <span class="chord-block"><span class="chord">G</span><span class="lyric"> ningu├®m al├®m de Ti</span></span>
+      </span>
+      <span class="chord-block"><span class="chord">D</span><span class="lyric"> </span></span>
+    </div>
+  </div>
+</div>
+<div class="test">
+  <h3>Linha 3: N├úo [Bm]h├í[A]</h3>
+  <div class="chord-container">
+    <div class="chordline">
+      <span class="keep-together">
+        <span class="chord-block"><span class="chord"></span><span class="lyric">N├úo </span></span>
+        <span class="chord-block"><span class="chord">Bm</span><span class="lyric">h├í</span></span>
+      </span>
+      <span class="chord-block"><span class="chord">A</span><span class="lyric"> </span></span>
+    </div>
+  </div>
+</div>
+<div class="test">
+  <h3>TESTE: Mesmo conte├║do, mas SEM keep-together (para comparar)</h3>
+  <div class="chord-container">
+    <div class="chordline">
+      <span class="chord-block"><span class="chord"></span><span class="lyric">N├úo </span></span>
+      <span class="chord-block"><span class="chord">Bm</span><span class="lyric">h├í</span></span>
+      <span class="chord-block"><span class="chord">A</span><span class="lyric"> </span></span>
+    </div>
+  </div>
+</div>
+
+</body></html>

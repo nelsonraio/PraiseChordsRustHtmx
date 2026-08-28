@@ -1,0 +1,12 @@
+<div class="p-6 text-white">
+  <div class="flex items-start justify-between gap-4">
+    <div><h2 class="text-2xl font-bold">Nova setlist</h2><p class="mt-1 text-sm text-gray-400">A música será adicionada automaticamente.</p></div>
+    <button type="button" data-modal-close class="w-8 h-8 rounded-full text-gray-300 hover:bg-gray-700 hover:text-white" title="Fechar"><i class="fas fa-times"></i></button>
+  </div>
+  <form hx-post="/htmx/songs/{{ song_id }}/setlists" hx-target="#setlist-song-create-message" hx-swap="innerHTML" class="mt-5 space-y-4">
+    <input name="desc" required maxlength="50" placeholder="Nome da setlist" class="w-full rounded-lg border border-gray-700 bg-gray-900 p-3 text-white" />
+    <input name="id_grupo" type="hidden" value="0" />
+    <div id="setlist-song-create-message" class="text-sm"></div>
+    <div class="flex justify-end gap-3"><button type="button" data-modal-close class="rounded-lg bg-gray-700 px-4 py-2">Cancelar</button><button type="submit" class="rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-4 py-2 font-semibold">Criar e adicionar</button></div>
+  </form>
+</div>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Teste Servidor</title>
+<link rel="stylesheet" href="/static/chordpro.css?v=2">
+<style>
+  body { margin: 20px; font-family: sans-serif; background: #f0f0f0; }
+  .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Teste EXATO no Servidor</h1>
+  <div id="output" class="chord-container"></div>
+</div>
+<script src="/static/chord-parser.js"></script>
+<script>
+  // ChordPro REAL do banco de dados
+  var cp = 
+    "Q[D]uem é como T[Bm]u, Jes[A]us\n" +
+    "Não há[G] ninguém além de Ti[D]\n" +
+    "Que é manso [Bm]e humilde assi[A]m\n" +
+    "Não h[G]á ninguém igual a [G]Ti[A][D/F#]\n" +
+    "Não [Bm]há[A]\n" +
+    "\n" +
+    "{soc: Coro}\n" +
+    "Maravilh[G]oso, admir[A]vel\n" +
+    "Tão sub[D/F#]lime, glori[Bm]oso[A]\n" +
+    "Tua pre[G]sença é mais desej[A]ível do que o[D/F#] ouro\n" +
+    "Melhor que a [Bm]vida é o te[A]u amor\n" +
+    "{eoc}";
+  
+  document.getElementById('output').innerHTML = window.parseChordPro2(cp, 0, 0);
+</script>
+</body>
+</html>

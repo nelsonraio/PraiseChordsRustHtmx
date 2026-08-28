@@ -1,0 +1,16 @@
+   Compiling praisechords-rs v0.1.0 (C:\laragon\www\praisechords-rs)
+warning: field `setlist_id` is never read
+   --> src\main.rs:264:5
+    |
+263 | struct SetlistNavigation {
+    |        ----------------- field in this struct
+264 |     setlist_id: i32,
+    |     ^^^^^^^^^^
+    |
+    = note: `SetlistNavigation` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `praisechords-rs` (bin "praisechords-rs") generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.86s
+warning: the following packages contain code that will be rejected by a future version of Rust: sqlx-postgres v0.7.4
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 3`
