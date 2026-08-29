@@ -6,6 +6,21 @@
   <link rel="stylesheet" href="/static/tailwind.css">
   <link rel="stylesheet" href="/static/css/fontawesome.min.css">
   <style>
+    [x-cloak] { display: none !important; }
+    .filter-collapse {
+      display: grid;
+      grid-template-rows: 0fr;
+      opacity: 0;
+      transition: grid-template-rows 300ms ease, opacity 250ms ease;
+    }
+    .filter-collapse-open {
+      grid-template-rows: 1fr;
+      opacity: 1;
+    }
+    .filter-collapse > div {
+      min-height: 0;
+      overflow: hidden;
+    }
     .quick-action-card {
       transition: transform 200ms ease, filter 200ms ease, box-shadow 200ms ease;
     }
@@ -97,7 +112,7 @@
         contentStyle() { const style = { fontSize: this.fontSize + 'px' }; if (this.columnCount) { style.columnCount = String(this.columnCount); style.columnGap = '2rem'; style.columnFill = 'auto'; style.height = '100%'; style.overflowY = 'hidden'; style.overflowX = 'auto'; } return style; },
         render() { this.renderedChordPro = window.parseChordPro2 ? window.parseChordPro2(this.chordProRaw, this.transposeSteps, this.accidentals) : ''; },
         settingsKey(songId) { return `praisechords:chord-settings:${songId}`; },
-        applySettings(saved) { if (!saved) return; this.fontSize = typeof saved.fontSize === 'number' && saved.fontSize >= 8 && saved.fontSize <= 32 ? saved.fontSize : 16; this.columnCount = [0, 1, 2, 3, 4].includes(saved.columnCount) ? saved.columnCount : 0; this.accidentals = [-1, 0, 1].includes(saved.accidentals) ? saved.accidentals : 0; this.transposeSteps = Number.isInteger(saved.transpose) && saved.transpose >= -11 && saved.transpose <= 11 ? saved.transpose : 0; this.render(); },
+        applySettings(saved) { if (!saved) return; this.fontSize = typeof saved.fontSize === 'number' && saved.fontSize >= 8 && saved.fontSize <= 32 ? saved.fontSize : 16; this.columnCount = [0, 2, 3, 4].includes(saved.columnCount) ? saved.columnCount : 0; if (window.matchMedia('(max-width: 767px)').matches && this.columnCount > 3) this.columnCount = 3; this.accidentals = [-1, 0, 1].includes(saved.accidentals) ? saved.accidentals : 0; this.transposeSteps = Number.isInteger(saved.transpose) && saved.transpose >= -11 && saved.transpose <= 11 ? saved.transpose : 0; this.render(); },
         async loadSettings(songId) { if (isPublic) { let cached = null; try { cached = JSON.parse(localStorage.getItem(this.settingsKey(songId)) || 'null'); } catch (error) { cached = null; } this.applySettings(cached); return; } try { const response = await fetch(`/api/chords/${songId}/settings`, { cache: 'no-store' }); if (response.ok) { const result = await response.json(); this.applySettings(result.data); localStorage.setItem(this.settingsKey(songId), JSON.stringify(result.data)); } else { const cached = JSON.parse(localStorage.getItem(this.settingsKey(songId)) || 'null'); this.applySettings(cached); } } catch (error) { const cached = JSON.parse(localStorage.getItem(this.settingsKey(songId)) || 'null'); this.applySettings(cached); } },
         confirmSave(songId) { if (isPublic) { this.saveSettings(songId); return; } if (window.confirm('Deseja gravar as alterações feitas nesta cifra?')) { this.saveSettings(songId); } },
         async saveSettings(songId) { const settings = { fontSize: this.fontSize, columnCount: this.columnCount, accidentals: this.accidentals, transpose: this.transposeSteps }; if (isPublic) { this.saveLocalSettings(); window.alert('Definições guardadas neste navegador.'); return; } try { const response = await fetch(`/api/chords/${songId}/settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) }); if (response.ok) { localStorage.setItem(this.settingsKey(songId), JSON.stringify(settings)); } } catch (error) { localStorage.setItem(this.settingsKey(songId), JSON.stringify(settings)); } },
@@ -106,7 +121,7 @@
         hideMenuSoon() { clearTimeout(this.menuTimer); this.menuTimer = setTimeout(() => { this.menuVisible = false; this.fontMenu = false; this.transposeMenu = false; }, 1000); },
         increaseFont() { this.fontSize = Math.min(Math.round((this.fontSize + 0.5) * 10) / 10, 32); },
         decreaseFont() { this.fontSize = Math.max(Math.round((this.fontSize - 0.5) * 10) / 10, 8); },
-        cycleColumns() { this.columnCount = (this.columnCount + 1) % 5; },
+        cycleColumns() { const maxColumns = window.matchMedia('(max-width: 767px)').matches ? 3 : 4; this.columnCount = this.columnCount === 0 ? 2 : (this.columnCount >= maxColumns ? 0 : this.columnCount + 1); },
         setAccidentalMode(flats) { this.accidentals = flats ? -1 : 1; this.render(); },
         transpose(steps) { this.transposeSteps += steps; this.render(); },
         async toggleFavorite() { const previous = this.fav; this.fav = !this.fav; try { const response = await fetch(`/api/songs/${songId}/favorite`, { method: 'POST' }); this.fav = (await response.json()).favorite === true; } catch (error) { this.fav = previous; } },

@@ -1,0 +1,2 @@
+   Compiling praisechords-rs v0.1.0 (C:\laragon\www\PraiseChordsRustHtmx)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 13.10s

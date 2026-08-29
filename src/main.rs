@@ -263,7 +263,6 @@ struct SongDetailTemplate {
 
 #[derive(Debug, Clone)]
 struct SetlistNavigation {
-    setlist_id: i32,
     current_position: usize,
     total_songs: usize,
     previous_url: Option<String>,
@@ -2915,7 +2914,6 @@ async fn setlist_player_page(
         transpose: settings.transpose,
     };
     let navigation = SetlistNavigation {
-        setlist_id,
         current_position: position,
         total_songs: song_ids.len(),
         previous_url: position
@@ -3057,7 +3055,6 @@ async fn public_setlist_player_page(
         transpose: 0,
     };
     let navigation = SetlistNavigation {
-        setlist_id,
         current_position: position,
         total_songs: song_ids.len(),
         previous_url: position
@@ -3450,7 +3447,12 @@ async fn no_cache_html(req: Request, next: Next) -> Response {
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info,sqlx=warn")),
+        )
+        .init();
 
     // centralised DB connect (loads .env from parent if needed)
     let pool = db::connect().await;
