@@ -119,8 +119,8 @@
   <form hx-post="/htmx/songs/new" hx-target="#song-new-message" hx-swap="innerHTML" class="space-y-6">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Nome da Música<input name="name" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Nome da música" /></label><label class="block text-sm font-medium text-gray-300">Nome Original<input name="org_name" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Nome original" /></label></div>
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Compositor<input name="composer" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Compositor" /></label><label class="block text-sm font-medium text-gray-300">Artistas<input name="artistas" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Artistas / Banda" /></label></div>
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-3"><label class="block text-sm font-medium text-gray-300">Tom Original<input name="org_key" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Ex: C, D, Em" /></label><label class="block text-sm font-medium text-gray-300">Tempo<input name="org_tempo" type="number" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="BPM" /></label><label class="block text-sm font-medium text-gray-300">Género<select name="genre_type" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black"><option value="">Selecionar género</option>{% for genre in genres %}<option value="{{ genre.id }}">{{ genre.name }}</option>{% endfor %}</select></label></div>
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Código<input name="code" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Código interno (opcional)" /></label><label class="block text-sm font-medium text-gray-300">Link do YouTube<input name="youtube" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="ID ou link do vídeo do YouTube" /></label></div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3"><label class="block text-sm font-medium text-gray-300">Tom Original<input name="org_key" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Ex: C, D, Em" /></label><label class="block text-sm font-medium text-gray-300">Tempo<input name="org_tempo" type="number" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="BPM" /></label><label class="block text-sm font-medium text-gray-300">Género<select id="genre-type-select" name="genre_type" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black"><option value="">Selecionar género</option>{% for genre in genres %}<option value="{{ genre.id }}">{{ genre.name }}</option>{% endfor %}</select></label></div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Código<input id="code-field" name="code" type="text" readonly class="mt-2 w-full rounded border border-gray-600 bg-gray-700 px-4 py-2 text-gray-300 cursor-not-allowed" placeholder="Selecione um género para gerar código automático" /><span class="text-xs text-gray-500">Gerado automaticamente com base no género</span></label><label class="block text-sm font-medium text-gray-300">Link do YouTube<input name="youtube" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="ID ou link do vídeo do YouTube" /></label></div>
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Copyright<input name="copyright" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Copyright" /></label><label class="block text-sm font-medium text-gray-300">Temas<input name="themes" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Temas" /></label></div>
     <label class="block text-sm font-medium text-gray-300">Cifra Original<textarea x-model="cifraOriginal" @input="convert()" rows="10" style="text-align: left;" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 font-mono text-sm text-black text-left" placeholder="Cole aqui a cifra original (ex.: formato CifraClub)... será convertida automaticamente para ChordPro"></textarea><span class="mt-1 block text-xs text-gray-400">Ao colar, a cifra é convertida automaticamente para o formato ChordPro (que fica editável e é o que será gravado).</span></label>
       <section class="rounded-lg border border-gray-600 bg-white p-1">
@@ -143,6 +143,30 @@
       <div x-show="viewMode === 'preview'" class="p-2"><div class="chord-container max-h-96 overflow-auto bg-white" x-html="preview"></div></div>
     </section>
     <textarea name="lyrics" class="hidden"></textarea>
+  <script>
+    (function() {
+      var genrePrefixes = {};
+      {% for genre in genres %}genrePrefixes['{{ genre.id }}'] = '{{ genre.prefix }}';{% endfor %}
+      function generateCode(genreId, callback) {
+        if (!genreId) return;
+        var prefix = genrePrefixes[genreId];
+        if (!prefix) return;
+        fetch('/htmx/songs/next-code?prefix=' + encodeURIComponent(prefix))
+          .then(function(r) { return r.json(); })
+          .then(function(data) { if (data.code) callback(data.code); })
+          .catch(function() {});
+      }
+      var codeField = document.getElementById('code-field');
+      var genreSelect = document.getElementById('genre-type-select');
+      if (codeField && genreSelect) {
+        genreSelect.addEventListener('change', function() {
+          if (this.value) generateCode(this.value, function(code) { codeField.value = code; });
+          else codeField.value = '';
+        });
+        if (genreSelect.value) generateCode(genreSelect.value, function(code) { codeField.value = code; });
+      }
+    })();
+  </script>
     <div id="song-new-message" class="text-sm"></div><div class="flex gap-3"><button type="submit" class="flex-1 rounded bg-emerald-600 px-6 py-3 font-semibold hover:bg-emerald-700">Criar Música</button><button type="button" data-modal-close class="flex-1 rounded bg-gray-700 px-6 py-3 font-semibold hover:bg-gray-600">Cancelar</button></div>
   </form>
 </div>

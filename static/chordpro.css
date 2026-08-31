@@ -8,7 +8,7 @@
 .chord-container .chord-block { display: inline-flex; flex-direction: column; justify-content: flex-start; vertical-align: bottom; line-height: 1.25rem; }
 .chord-container .keep-together { display: inline-flex; flex-direction: row; align-items: stretch; white-space: nowrap; vertical-align: bottom; }
 .chord-container .chord { white-space: nowrap; font-weight: 900; font-size: .875em; min-height: 1.2em; color: var(--chord-color); line-height: 1.2; }
-.chord-container .lyric, .chord-container .textonly { white-space: pre-wrap; line-height: 1.2; color: var(--text-color); }
+.chord-container .lyric, .chord-container .textonly { white-space: pre-wrap; line-height: 1.2; color: var(--text-color); margin: .75rem 0; }
 .chord-container .inline { display: block; font-size: .875em; font-weight: 700; color: var(--chord-color); white-space: pre-wrap; margin: 1.2rem 0 .4rem; }
 .chord-container .c, .chord-container .comment { display: block; color: var(--comment-color); font-style: italic; font-weight: 500; margin-bottom: .4rem; }
 .chord-container .comment-block, .chord-container .inline-block { margin: .9rem 0; }

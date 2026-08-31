@@ -227,6 +227,10 @@
       try {
         const target = event.detail.target;
         if (target && target.id === 'modal') {
+          // Processar elementos hx-* carregados dinamicamente no modal
+          if (window.htmx) {
+            window.htmx.process(target);
+          }
           openModal();
         }
       } catch (e) {}

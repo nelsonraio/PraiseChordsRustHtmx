@@ -3,15 +3,34 @@
 {% block content %}
 <main class="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
   <div class="container mx-auto px-4 py-12 max-w-7xl">
-    <a href="/app" class="inline-flex mb-6 text-sm text-gray-300 hover:text-white">← Dashboard</a>
+    <a href="/app" class="inline-flex mb-6 text-sm text-gray-300 hover:text-white">&larr; Dashboard</a>
     <div class="mb-8"><h1 class="text-4xl font-bold text-white mb-2">{{ title }}</h1><p class="text-gray-400">{{ subtitle }}</p></div>
     <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50">
-      {% if songs.len() == 0 %}<div class="text-center py-12"><div class="text-6xl mb-4">❤️</div><h2 class="text-xl font-semibold text-white mb-2">Nenhuma música favorita ainda</h2><p class="text-gray-400 mb-6">Comece a adicionar músicas aos seus favoritos!</p><a href="/app#buscar-cifras" class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"><i class="fas fa-search"></i> Explorar Cifras</a></div>{% else %}
-      <ul class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {% for song in songs %}
-        <li class="relative bg-gray-700/50 rounded-lg border border-gray-600 hover:border-gray-500 transition-all"><a hx-get="/htmx/songs/{{ song.id }}" hx-target="#modal" hx-swap="innerHTML" class="block p-4 hover:bg-gray-700 transition-colors rounded-lg"><div class="flex items-start justify-between mb-2"><h2 class="font-semibold text-white text-lg flex-1 mr-2">{{ song.name }}</h2><i class="fas fa-heart text-red-500"></i></div>{% if song.artistas != "" %}<p class="text-gray-400 text-sm mb-1"><i class="fas fa-user mr-1"></i>{{ song.artistas }}</p>{% endif %}{% if song.composer != "" %}<p class="text-gray-500 text-xs"><i class="fas fa-music mr-1"></i>{{ song.composer }}</p>{% endif %}{% if song.org_key != "" %}<div class="mt-2 inline-block px-2 py-1 bg-blue-600/20 text-blue-400 rounded text-xs">Tom: {{ song.org_key }}</div>{% endif %}</a>{% if let Some(youtube_url) = song.youtube %}<button type="button" data-youtube-url="{{ youtube_url }}" onclick="window.praiseChordsYoutube.play(this.dataset.youtubeUrl)" class="absolute top-3 right-3 z-10 w-10 h-10 flex items-center justify-center rounded bg-red-600 hover:bg-red-700 text-white transition-all shadow-lg hover:shadow-xl" title="Reproduzir no YouTube"><i class="fas fa-play text-lg"></i></button>{% endif %}</li>
-      {% endfor %}
-      </ul>{% endif %}
+      {% if songs.len() == 0 %}<div class="text-center py-12"><div class="text-6xl mb-4">&#10084;&#65039;</div><h2 class="text-xl font-semibold text-white mb-2">Nenhuma m&uacute;sica favorita ainda</h2><p class="text-gray-400 mb-6">Comece a adicionar m&uacute;sicas aos seus favoritos!</p><a href="/app#buscar-cifras" class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"><i class="fas fa-search"></i> Explorar Cifras</a></div>{% else %}
+      <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl">
+        <h2 class="text-lg font-bold text-blue-400 px-4 pt-4 mb-3">{{ title }}</h2>
+        <ul class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-3 sm:px-4 pb-4">
+        {% for song in songs %}
+          <li class="p-4 bg-gray-700 rounded-lg hover:bg-gray-600 transition shadow-md">
+            <div class="flex flex-col gap-2">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-1 bg-gray-800/60 border border-gray-600/50 rounded-full px-2 py-1">
+                  <div x-data="favButton({{ song.id }}, {{ song.favorite }})" class="inline-block"><button @click="toggle()" :class="fav ? 'text-yellow-400 hover:text-yellow-300' : 'text-gray-400 hover:text-yellow-400'" class="w-8 h-8 flex items-center justify-center text-sm rounded-full transition-all" title="Adicionar aos favoritos"><i :class="fav ? 'fas fa-star text-lg' : 'far fa-star text-lg'"></i></button></div>
+                  {% if song.org_key != "" %}<span class="px-2 py-1 bg-yellow-400 text-black text-xs font-bold rounded-full">{{ song.org_key }}</span>{% endif %}
+                  {% if let Some(youtube_url) = song.youtube %}<button type="button" data-youtube-url="{{ youtube_url }}" onclick="window.praiseChordsYoutube.play(this.dataset.youtubeUrl)" class="w-8 h-8 flex items-center justify-center bg-gray-600 hover:bg-red-600 text-gray-300 hover:text-white rounded-full transition-all" title="Reproduzir YouTube"><i class="fas fa-play text-sm"></i></button>{% endif %}
+                  <button hx-get="/htmx/songs/{{ song.id }}/setlists" hx-target="#modal" hx-swap="innerHTML" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-700/70 rounded-full" title="Adicionar a setlist"><i class="fas fa-list text-lg"></i></button>
+                  {% if song.can_edit %}<button hx-get="/htmx/songs/{{ song.id }}/edit" hx-target="#modal" hx-swap="innerHTML" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-700/70 rounded-full transition" title="Editar Cifra"><i class="fas fa-pencil text-lg"></i></button>{% endif %}
+                  <button hx-get="/htmx/songs/{{ song.id }}" hx-target="#modal" hx-swap="innerHTML" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-700/70 rounded-full transition" title="Ver Cifra"><i class="fas fa-eye text-lg"></i></button>
+                </div>
+              </div>
+              <div class="flex flex-wrap items-center gap-3"><h3 class="font-semibold text-white">{{ song.name }}</h3>{% if song.org_name != "" %}<span class="text-gray-300 text-sm">{{ song.org_name }}{% if song.composer != "" %} ({{ song.composer }}){% endif %}</span>{% endif %}</div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Artistas: {% if song.artistas != "" %}{{ song.artistas }}{% else %}N/A{% endif %}</p>
+          </li>
+        {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
     </div>
   </div>
 </main>

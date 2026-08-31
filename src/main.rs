@@ -98,6 +98,7 @@ struct ChordSettingsInput {
 #[derive(Serialize, Debug, Clone)]
 struct SongListItem {
     id: i32,
+    code: String,
     name: String,
     org_name: String,
     composer: String,
@@ -105,6 +106,8 @@ struct SongListItem {
     org_key: String,
     youtube: Option<String>,
     favorite: bool,
+    can_edit: bool,
+    can_delete: bool,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -116,6 +119,8 @@ struct SongDetailView {
     lyrics: String,
     youtube: String,
     favorite: bool,
+    can_edit: bool,
+    can_delete: bool,
     font_size: f32,
     column_count: i32,
     accidentals: i32,
@@ -125,6 +130,7 @@ struct SongDetailView {
 #[derive(Debug, Clone)]
 struct SongEditView {
     id: i32,
+    code: String,
     title: String,
     name: String,
     org_name: String,
@@ -143,6 +149,7 @@ struct SongEditView {
 struct GenreOption {
     id: i32,
     name: String,
+    prefix: String,
     selected: bool,
 }
 
@@ -150,6 +157,7 @@ struct GenreOption {
 struct GenreTypeRow {
     id: i32,
     desc: String,
+    prefix: String,
 }
 
 #[derive(sqlx::FromRow, Debug, Clone)]
@@ -169,6 +177,7 @@ struct AuthClaims {
     email: String,
     nome: Option<String>,
     perfil: Option<i32>,
+    is_demo: bool,
     exp: usize,
 }
 
@@ -184,6 +193,8 @@ struct IndexTemplate {
     setlist_count: i64,
     is_programmer: bool,
     is_admin: bool,
+    #[allow(dead_code)]
+    is_demo: bool,
     genres: Vec<GenreTypeRow>,
 }
 
@@ -514,15 +525,28 @@ fn normalize_youtube(value: String) -> String {
     }
 }
 
-fn create_auth_token(user: &DbUser) -> Option<String> {
+/// Check if a user is a demo account by their ID.
+async fn is_user_demo(pool: &PgPool, user_id: i32) -> bool {
+    sqlx::query_scalar::<_, bool>("SELECT COALESCE(is_demo, FALSE) FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or(false)
+}
+
+async fn create_auth_token(pool: &PgPool, user: &DbUser) -> Option<String> {
     let exp = Utc::now()
         .checked_add_signed(Duration::days(7))?
         .timestamp() as usize;
+    let is_demo = is_user_demo(pool, user.id).await;
     let claims = AuthClaims {
         id: user.id,
         email: user.email.clone(),
         nome: user.nome.clone(),
         perfil: user.perfil.clone(),
+        is_demo,
         exp,
     };
 
@@ -568,6 +592,72 @@ async fn is_admin_user(pool: &PgPool, jar: &CookieJar) -> bool {
         .flatten()
         .unwrap_or(1);
     perfil >= 3
+}
+
+/// Check if the authenticated user is a demo account (reads `is_demo` from the JWT claims).
+#[allow(dead_code)]
+fn is_demo_user(jar: &CookieJar) -> bool {
+    let token = match jar.get("token") {
+        Some(cookie) => cookie.value().to_string(),
+        None => return false,
+    };
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.validate_exp = true;
+    decode::<AuthClaims>(&token, &DecodingKey::from_secret(auth_secret().as_bytes()), &validation)
+        .ok()
+        .map(|data| data.claims.is_demo)
+        .unwrap_or(false)
+}
+
+/// Delete all songs created by demo users. Returns the number of songs deleted.
+async fn cleanup_demo_data(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    // Delete related records first (FK constraints), then the songs themselves.
+    let _ = sqlx::query(
+        r#"DELETE FROM "UserFavoriteSongs" WHERE "songId" IN (SELECT "ID" FROM songs WHERE "IdInsertUser" IN (SELECT id FROM users WHERE is_demo = TRUE))"#,
+    )
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(
+        r#"DELETE FROM "UserChordSettings" WHERE "songId" IN (SELECT "ID" FROM songs WHERE "IdInsertUser" IN (SELECT id FROM users WHERE is_demo = TRUE))"#,
+    )
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(
+        r#"DELETE FROM setlistsongs WHERE "IDSong" IN (SELECT "ID" FROM songs WHERE "IdInsertUser" IN (SELECT id FROM users WHERE is_demo = TRUE))"#,
+    )
+    .execute(pool)
+    .await;
+    let result = sqlx::query(
+        r#"DELETE FROM songs WHERE "IdInsertUser" IN (SELECT id FROM users WHERE is_demo = TRUE)"#,
+    )
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
+/// When a demo user logs in, check if their oldest demo song is older than 24h.
+/// If so, purge all demo data before they enter.
+async fn auto_cleanup_on_demo_login(pool: &PgPool) {
+    let oldest: Option<chrono::NaiveDateTime> = sqlx::query_scalar(
+        r#"SELECT MIN("createdAt") FROM songs WHERE "IdInsertUser" IN (SELECT id FROM users WHERE is_demo = TRUE)"#,
+    )
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+    let should_cleanup = match oldest {
+        Some(ts) => {
+            let elapsed = chrono::Utc::now().naive_utc() - ts;
+            elapsed.num_hours() >= 24
+        }
+        None => false,
+    };
+    if should_cleanup {
+        match cleanup_demo_data(pool).await {
+            Ok(n) => tracing::info!("auto-cleanup demo data: {n} songs deleted"),
+            Err(e) => tracing::error!("auto-cleanup demo data failed: {e}"),
+        }
+    }
 }
 
 async fn login_page(jar: CookieJar) -> impl IntoResponse {
@@ -650,7 +740,7 @@ async fn login_submit(
         return (StatusCode::UNAUTHORIZED, Html("<p class=\"text-center text-red-400 mb-4 text-sm sm:text-base\">Erro: Password incorreta</p>".to_string())).into_response();
     }
 
-    let token = match create_auth_token(&user) {
+    let token = match create_auth_token(&pool, &user).await {
         Some(token) => token,
         None => {
             return (StatusCode::INTERNAL_SERVER_ERROR, Html("<p class=\"text-center text-red-400 mb-4 text-sm sm:text-base\">Erro: Não foi possível criar sessão</p>".to_string())).into_response();
@@ -672,6 +762,11 @@ async fn login_submit(
     .bind(user.id)
     .execute(&pool)
     .await;
+
+    // Auto-cleanup demo data on demo login if older than 24h
+    if is_user_demo(&pool, user.id).await {
+        auto_cleanup_on_demo_login(&pool).await;
+    }
 
     (
         jar.add(cookie),
@@ -1342,6 +1437,33 @@ async fn delete_user_htmx(
     }
 }
 
+/// HTMX handler: programmer-only endpoint to manually purge all demo data.
+async fn cleanup_demo_htmx(
+    Extension(pool): Extension<PgPool>,
+    jar: CookieJar,
+) -> impl IntoResponse {
+    let Some(current_user_id) = authenticated_user_id(&jar) else {
+        return Html("<p class=\"text-red-400\">Sessão expirada</p>".to_string()).into_response();
+    };
+    if !is_programmer_user(&pool, current_user_id).await {
+        return Html("<p class=\"text-red-400\">Acesso negado</p>".to_string()).into_response();
+    }
+    match cleanup_demo_data(&pool).await {
+        Ok(n) => (
+            [(
+                header::HeaderName::from_static("hx-trigger"),
+                "demo-cleaned",
+            )],
+            Html(format!("<p class=\"text-green-400\">✓ Dados demo limpos: {n} músicas removidas.</p>")),
+        )
+            .into_response(),
+        Err(error) => {
+            tracing::error!(%error, "failed to cleanup demo data");
+            Html("<p class=\"text-red-400\">Erro ao limpar dados demo.</p>".to_string()).into_response()
+        }
+    }
+}
+
 async fn is_programmer_user(pool: &PgPool, user_id: i32) -> bool {
     sqlx::query_scalar::<_, Option<i32>>("SELECT perfil FROM users WHERE id = $1")
         .bind(user_id)
@@ -1351,6 +1473,23 @@ async fn is_programmer_user(pool: &PgPool, user_id: i32) -> bool {
         .flatten()
         .flatten()
         == Some(4)
+}
+
+/// Uma música só pode ser editada pelo seu criador (`IdInsertUser`) ou por um programador.
+async fn can_edit_song(pool: &PgPool, user_id: i32, owner: Option<i32>) -> bool {
+    is_programmer_user(pool, user_id).await || owner == Some(user_id)
+}
+
+/// Apenas administradores (perfil >= 3) podem apagar músicas.
+/// Programadores podem apagar qualquer uma, administradores só as suas próprias.
+async fn can_delete_song(pool: &PgPool, user_id: i32, owner: Option<i32>, jar: &CookieJar) -> bool {
+    if is_programmer_user(pool, user_id).await {
+        return true;
+    }
+    if is_admin_user(pool, jar).await {
+        return owner == Some(user_id);
+    }
+    false
 }
 
 #[derive(Deserialize)]
@@ -1647,6 +1786,7 @@ async fn index(Extension(pool): Extension<PgPool>, jar: CookieJar) -> impl IntoR
     .to_string();
     let is_programmer = user.perfil.unwrap_or(1) == 4;
     let is_admin = user.perfil.unwrap_or(1) >= 3;
+    let is_demo = is_user_demo(&pool, user.id).await;
 
     let song_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM songs")
         .fetch_one(&pool)
@@ -1666,16 +1806,17 @@ async fn index(Extension(pool): Extension<PgPool>, jar: CookieJar) -> impl IntoR
             .await
             .unwrap_or(0);
 
-    let genres = sqlx::query_as::<_, (i32, Option<String>)>(
-        "SELECT \"ID\", \"Desc\" FROM genretypes ORDER BY \"ID\"",
+    let genres = sqlx::query_as::<_, (i32, Option<String>, Option<String>)>(
+        "SELECT \"ID\", \"Desc\", \"CodeSufix\" FROM genretypes ORDER BY \"ID\"",
     )
     .fetch_all(&pool)
     .await
     .unwrap_or_default()
     .into_iter()
-    .map(|(id, desc)| GenreTypeRow {
+    .map(|(id, desc, prefix)| GenreTypeRow {
         id,
         desc: desc.unwrap_or_else(|| format!("Tipo {id}")),
+        prefix: prefix.unwrap_or_default(),
     })
     .collect();
 
@@ -1693,6 +1834,7 @@ async fn index(Extension(pool): Extension<PgPool>, jar: CookieJar) -> impl IntoR
         setlist_count,
         is_programmer,
         is_admin,
+        is_demo,
         genres,
     };
     let rendered = tpl
@@ -1721,10 +1863,18 @@ async fn list_songs_htmx(Extension(pool): Extension<PgPool>, jar: CookieJar) -> 
         .await
         .unwrap_or_default();
 
+    let user_id = authenticated_user_id(&jar);
+    let is_programmer = match user_id {
+        Some(uid) => is_programmer_user(&pool, uid).await,
+        None => false,
+    };
+    let is_admin = is_admin_user(&pool, &jar).await;
+
     let list: Vec<SongListItem> = rows
         .into_iter()
         .map(|s| SongListItem {
             id: s.id,
+            code: s.code.unwrap_or_default(),
             name: s.name.unwrap_or_else(|| "(sem título)".to_string()),
             org_name: s.org_name.unwrap_or_default(),
             composer: s.composer.unwrap_or_default(),
@@ -1732,6 +1882,8 @@ async fn list_songs_htmx(Extension(pool): Extension<PgPool>, jar: CookieJar) -> 
             org_key: s.org_key.unwrap_or_default(),
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: s.favorite.unwrap_or(false),
+            can_edit: is_programmer || user_id == s.id_insert_user,
+            can_delete: is_programmer || is_admin,
         })
         .collect();
 
@@ -1754,10 +1906,18 @@ async fn list_songs_json(Extension(pool): Extension<PgPool>, jar: CookieJar) -> 
     .await
     .unwrap_or_default();
 
+    let user_id = authenticated_user_id(&jar);
+    let is_programmer = match user_id {
+        Some(uid) => is_programmer_user(&pool, uid).await,
+        None => false,
+    };
+    let is_admin = is_admin_user(&pool, &jar).await;
+
     let list: Vec<SongListItem> = rows
         .into_iter()
         .map(|s| SongListItem {
             id: s.id,
+            code: s.code.unwrap_or_default(),
             name: s.name.unwrap_or_else(|| "(sem título)".to_string()),
             org_name: s.org_name.unwrap_or_default(),
             composer: s.composer.unwrap_or_default(),
@@ -1765,6 +1925,8 @@ async fn list_songs_json(Extension(pool): Extension<PgPool>, jar: CookieJar) -> 
             org_key: s.org_key.unwrap_or_default(),
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: s.favorite.unwrap_or(false),
+            can_edit: is_programmer || user_id == s.id_insert_user,
+            can_delete: is_programmer || is_admin,
         })
         .collect();
 
@@ -1795,10 +1957,17 @@ async fn library_page(
             .await
             .unwrap_or_default()
     };
+    let current_user_id = authenticated_user_id(&jar);
+    let is_programmer = match current_user_id {
+        Some(uid) => is_programmer_user(&pool, uid).await,
+        None => false,
+    };
+    let is_admin = is_admin_user(&pool, &jar).await;
     let songs = rows
         .into_iter()
         .map(|song| SongListItem {
             id: song.id,
+            code: song.code.unwrap_or_default(),
             name: song.name.unwrap_or_else(|| "(sem título)".to_string()),
             org_name: song.org_name.unwrap_or_default(),
             composer: song.composer.unwrap_or_default(),
@@ -1806,6 +1975,8 @@ async fn library_page(
             org_key: song.org_key.unwrap_or_default(),
             youtube: song.youtube.filter(|url| !url.trim().is_empty()),
             favorite: user_id.is_some() || song.favorite.unwrap_or(false),
+            can_edit: is_programmer || current_user_id == song.id_insert_user,
+            can_delete: is_programmer || is_admin,
         })
         .collect();
     let template = LibraryTemplate {
@@ -1857,18 +2028,26 @@ async fn search_songs(
         .map(|s| format!("%{}%", s))
         .unwrap_or_else(|| "%".to_string());
 
-    let rows = sqlx::query_as::<_, (i32, Option<String>, Option<String>)>(
-        "SELECT \"ID\", \"Name\", \"Artistas\" FROM songs WHERE \"Name\" ILIKE $1 OR \"Artistas\" ILIKE $1 OR \"Code\" ILIKE $1 ORDER BY \"ID\" DESC LIMIT 50",
+    let rows = sqlx::query_as::<_, (i32, Option<String>, Option<String>, Option<String>, Option<i32>)>(
+        "SELECT \"ID\", \"Code\", \"Name\", \"Artistas\", \"IdInsertUser\" FROM songs WHERE \"Name\" ILIKE $1 OR \"Artistas\" ILIKE $1 OR \"Code\" ILIKE $1 ORDER BY \"ID\" DESC LIMIT 50",
     )
     .bind(q)
     .fetch_all(&pool)
     .await
     .unwrap_or_default();
 
+    let user_id = authenticated_user_id(&jar);
+    let is_programmer = match user_id {
+        Some(uid) => is_programmer_user(&pool, uid).await,
+        None => false,
+    };
+    let is_admin = is_admin_user(&pool, &jar).await;
+
     let list: Vec<SongListItem> = rows
         .into_iter()
-        .map(|(id, name, artistas)| SongListItem {
+        .map(|(id, code, name, artistas, owner)| SongListItem {
             id,
+            code: code.unwrap_or_default(),
             name: name.unwrap_or_else(|| "(sem título)".to_string()),
             org_name: String::new(),
             composer: String::new(),
@@ -1876,6 +2055,8 @@ async fn search_songs(
             org_key: String::new(),
             youtube: None,
             favorite: false,
+            can_edit: is_programmer || user_id == owner,
+            can_delete: is_programmer || is_admin,
         })
         .collect();
 
@@ -1960,10 +2141,18 @@ async fn search_songs_htmx(
             Vec::new()
         });
 
+    let user_id = authenticated_user_id(&jar);
+    let is_programmer = match user_id {
+        Some(uid) => is_programmer_user(&pool, uid).await,
+        None => false,
+    };
+    let is_admin = is_admin_user(&pool, &jar).await;
+
     let list: Vec<SongListItem> = rows
         .into_iter()
         .map(|s| SongListItem {
             id: s.id,
+            code: s.code.unwrap_or_default(),
             name: s.name.unwrap_or_else(|| "(sem título)".to_string()),
             org_name: s.org_name.unwrap_or_default(),
             composer: s.composer.unwrap_or_default(),
@@ -1971,6 +2160,8 @@ async fn search_songs_htmx(
             org_key: s.org_key.unwrap_or_default(),
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: s.favorite.unwrap_or(false) || fav_filter_active,
+            can_edit: is_programmer || user_id == s.id_insert_user,
+            can_delete: is_programmer || is_admin,
         })
         .collect();
 
@@ -2809,6 +3000,8 @@ async fn song_detail_htmx(
             lyrics: song.lyrics.unwrap_or_default(),
             youtube: song.youtube.unwrap_or_default(),
             favorite: song.favorite.unwrap_or(false),
+            can_edit: can_edit_song(&pool, user_id, song.id_insert_user).await,
+            can_delete: can_delete_song(&pool, user_id, song.id_insert_user, &jar).await,
             font_size: settings.font_size,
             column_count: settings.column_count,
             accidentals: settings.accidentals,
@@ -2908,6 +3101,8 @@ async fn setlist_player_page(
         lyrics: song.lyrics.unwrap_or_default(),
         youtube: song.youtube.unwrap_or_default(),
         favorite: song.favorite.unwrap_or(false),
+        can_edit: can_edit_song(&pool, user_id, song.id_insert_user).await,
+        can_delete: can_delete_song(&pool, user_id, song.id_insert_user, &jar).await,
         font_size: settings.font_size,
         column_count: settings.column_count,
         accidentals: settings.accidentals,
@@ -3049,6 +3244,8 @@ async fn public_setlist_player_page(
         lyrics: song.lyrics.unwrap_or_default(),
         youtube: song.youtube.unwrap_or_default(),
         favorite: false,
+        can_edit: false,
+        can_delete: false,
         font_size: 16.0,
         column_count: 0,
         accidentals: 0,
@@ -3090,9 +3287,22 @@ async fn song_edit_htmx(
         return Html("<div class=\"p-4 text-red-400\">Música não encontrada.</div>".to_string())
             .into_response();
     };
+    // Apenas o criador (IdInsertUser) ou o programador pode abrir a edição
+    if let Some(user_id) = authenticated_user_id(&jar) {
+        if !can_edit_song(&pool, user_id, song.id_insert_user).await {
+            return (
+                StatusCode::FORBIDDEN,
+                Html("<div class=\"p-4 text-red-400\">Apenas o criador desta música ou o programador pode editá-la.</div>".to_string()),
+            )
+                .into_response();
+        }
+    } else {
+        return Html("<div class=\"p-4 text-red-400\">Sessão expirada. Faça login novamente.</div>".to_string())
+            .into_response();
+    }
     let selected_genre = song.genre_type;
-    let genres = sqlx::query_as::<_, (i32, Option<String>)>(
-        "SELECT s.\"GenreType\" AS id, COALESCE(g.\"Desc\", 'Tipo ' || s.\"GenreType\") AS name \
+    let genres = sqlx::query_as::<_, (i32, Option<String>, Option<String>)>(
+        "SELECT s.\"GenreType\" AS id, COALESCE(g.\"Desc\", 'Tipo ' || s.\"GenreType\") AS name, g.\"CodeSufix\" AS prefix \
          FROM (SELECT DISTINCT \"GenreType\" FROM songs WHERE \"GenreType\" IS NOT NULL) s \
          LEFT JOIN genretypes g ON g.\"ID\" = s.\"GenreType\" ORDER BY id",
     )
@@ -3100,14 +3310,16 @@ async fn song_edit_htmx(
     .await
     .unwrap_or_default()
     .into_iter()
-    .map(|(id, name)| GenreOption {
+    .map(|(id, name, prefix)| GenreOption {
         id,
         name: name.unwrap_or_else(|| format!("Tipo {id}")),
+        prefix: prefix.unwrap_or_default(),
         selected: Some(id) == selected_genre,
     })
     .collect();
     let view = SongEditView {
         id: song.id,
+        code: song.code.unwrap_or_default(),
         title: song
             .name
             .clone()
@@ -3138,6 +3350,7 @@ async fn song_edit_htmx(
 
 #[derive(Deserialize)]
 struct SongEditForm {
+    code: String,
     name: String,
     org_name: String,
     composer: String,
@@ -3165,6 +3378,23 @@ async fn update_song_htmx(
         )
             .into_response();
     };
+    // Apenas o criador (IdInsertUser) ou o programador pode gravar alterações
+    let owner: Option<i32> = sqlx::query_scalar("SELECT \"IdInsertUser\" FROM songs WHERE \"ID\" = $1")
+        .bind(id)
+        .fetch_optional(&pool)
+        .await
+        .ok()
+        .flatten();
+    if !can_edit_song(&pool, user_id, owner).await {
+        return (
+            StatusCode::FORBIDDEN,
+            Html(
+                "<p class=\"text-red-400\">Apenas o criador desta música ou o programador pode editá-la.</p>"
+                    .to_string(),
+            ),
+        )
+            .into_response();
+    }
     let genre_type = form
         .genre_type
         .as_deref()
@@ -3174,8 +3404,8 @@ async fn update_song_htmx(
         .as_deref()
         .and_then(|value| value.trim().parse::<i32>().ok());
 
-    let result = sqlx::query("UPDATE songs SET \"Name\" = $1, \"OrgName\" = $2, \"Composer\" = $3, \"ChordPro\" = $4, \"Lyrics\" = $5, \"Themes\" = $6, \"Youtube\" = $7, \"GenreType\" = $8, \"Artistas\" = $9, \"OrgKey\" = $10, \"OrgTempo\" = $11, \"Copyright\" = $12, \"IdUpdateUser\" = $13, \"updatedAt\" = NOW() WHERE \"ID\" = $14")
-        .bind(form.name).bind(form.org_name).bind(form.composer).bind(normalize_newlines(form.chord_pro)).bind(normalize_newlines(form.lyrics)).bind(form.themes).bind(normalize_youtube(form.youtube)).bind(genre_type).bind(form.artistas).bind(form.org_key).bind(org_tempo).bind(form.copyright).bind(user_id).bind(id)
+    let result = sqlx::query("UPDATE songs SET \"Code\" = $1, \"Name\" = $2, \"OrgName\" = $3, \"Composer\" = $4, \"ChordPro\" = $5, \"Lyrics\" = $6, \"Themes\" = $7, \"Youtube\" = $8, \"GenreType\" = $9, \"Artistas\" = $10, \"OrgKey\" = $11, \"OrgTempo\" = $12, \"Copyright\" = $13, \"IdUpdateUser\" = $14, \"updatedAt\" = NOW() WHERE \"ID\" = $15")
+        .bind(form.code).bind(form.name).bind(form.org_name).bind(form.composer).bind(normalize_newlines(form.chord_pro)).bind(normalize_newlines(form.lyrics)).bind(form.themes).bind(normalize_youtube(form.youtube)).bind(genre_type).bind(form.artistas).bind(form.org_key).bind(org_tempo).bind(form.copyright).bind(user_id).bind(id)
         .execute(&pool)
         .await;
     match result {
@@ -3238,6 +3468,50 @@ fn empty_to_none(value: String) -> Option<String> {
     }
 }
 
+async fn next_code_htmx(
+    Extension(pool): Extension<PgPool>,
+    jar: CookieJar,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    if !is_authenticated(&jar) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Sessão expirada."})),
+        )
+            .into_response();
+    }
+    let prefix = params.get("prefix").map(|s| s.as_str()).unwrap_or("");
+    if prefix.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Prefixo não informado."})),
+        )
+            .into_response();
+    }
+    // Find the highest existing code with this prefix
+    let pattern = format!("{}%", prefix);
+    let result = sqlx::query_as::<_, (Option<String>,)>(
+        "SELECT \"Code\" FROM songs WHERE \"Code\" LIKE $1 ORDER BY \"Code\" DESC LIMIT 1",
+    )
+    .bind(&pattern)
+    .fetch_optional(&pool)
+    .await;
+    let next_num = match result {
+        Ok(Some((Some(code),))) => {
+            // Extract the numeric suffix from the code
+            let numeric_part: String = code.chars().skip(prefix.len()).collect();
+            numeric_part
+                .parse::<i32>()
+                .ok()
+                .map(|n| n + 1)
+                .unwrap_or(1)
+        }
+        _ => 1,
+    };
+    let new_code = format!("{}{:04}", prefix, next_num);
+    (StatusCode::OK, Json(serde_json::json!({"code": new_code}))).into_response()
+}
+
 async fn song_new_htmx(Extension(pool): Extension<PgPool>, jar: CookieJar) -> impl IntoResponse {
     if !is_authenticated(&jar) {
         return Html(
@@ -3253,8 +3527,8 @@ async fn song_new_htmx(Extension(pool): Extension<PgPool>, jar: CookieJar) -> im
         )
         .into_response();
     }
-    let genres = sqlx::query_as::<_, (i32, Option<String>)>(
-        "SELECT s.\"GenreType\" AS id, COALESCE(g.\"Desc\", 'Tipo ' || s.\"GenreType\") AS name \
+    let genres = sqlx::query_as::<_, (i32, Option<String>, Option<String>)>(
+        "SELECT s.\"GenreType\" AS id, COALESCE(g.\"Desc\", 'Tipo ' || s.\"GenreType\") AS name, g.\"CodeSufix\" AS prefix \
          FROM (SELECT DISTINCT \"GenreType\" FROM songs WHERE \"GenreType\" IS NOT NULL) s \
          LEFT JOIN genretypes g ON g.\"ID\" = s.\"GenreType\" ORDER BY id",
     )
@@ -3262,9 +3536,10 @@ async fn song_new_htmx(Extension(pool): Extension<PgPool>, jar: CookieJar) -> im
     .await
     .unwrap_or_default()
     .into_iter()
-    .map(|(id, name)| GenreOption {
+    .map(|(id, name, prefix)| GenreOption {
         id,
         name: name.unwrap_or_else(|| format!("Tipo {id}")),
+        prefix: prefix.unwrap_or_default(),
         selected: false,
     })
     .collect();
@@ -3337,6 +3612,104 @@ async fn create_song_htmx(
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Html("<p class=\"text-red-400\">Não foi possível criar a música.</p>".to_string()),
+            )
+                .into_response()
+        }
+    }
+}
+
+/// Delete a song. Only admin (perfil >= 3) can delete their own songs, or programmer (perfil 4) can delete any.
+async fn delete_song_htmx(
+    Extension(pool): Extension<PgPool>,
+    Path(id): Path<i32>,
+    jar: CookieJar,
+) -> impl IntoResponse {
+    let Some(user_id) = authenticated_user_id(&jar) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Html("<p class=\"text-red-400\">Sessão expirada.</p>".to_string()),
+        )
+            .into_response();
+    };
+
+    // Check if user is programmer or admin
+    let is_programmer = is_programmer_user(&pool, user_id).await;
+    let is_admin = is_admin_user(&pool, &jar).await;
+
+    // Normal users cannot delete songs
+    if !is_programmer && !is_admin {
+        return (
+            StatusCode::FORBIDDEN,
+            Html(
+                "<p class=\"text-red-400\">Apenas administradores podem apagar músicas.</p>"
+                    .to_string(),
+            ),
+        )
+            .into_response();
+    }
+
+    // Admin can only delete their own songs, programmer can delete any
+    if !is_programmer {
+        let owner: Option<i32> =
+            sqlx::query_scalar("SELECT \"IdInsertUser\" FROM songs WHERE \"ID\" = $1")
+                .bind(id)
+                .fetch_optional(&pool)
+                .await
+                .ok()
+                .flatten();
+
+        if owner != Some(user_id) {
+            return (
+                StatusCode::FORBIDDEN,
+                Html(
+                    "<p class=\"text-red-400\">Só pode apagar as suas próprias músicas.</p>"
+                        .to_string(),
+                ),
+            )
+                .into_response();
+        }
+    }
+
+    // Delete related records first (FK constraints), then the song
+    let _ = sqlx::query(
+        r#"DELETE FROM "UserFavoriteSongs" WHERE "songId" = $1"#,
+    )
+    .bind(id)
+    .execute(&pool)
+    .await;
+
+    let _ = sqlx::query(
+        r#"DELETE FROM "UserChordSettings" WHERE "songId" = $1"#,
+    )
+    .bind(id)
+    .execute(&pool)
+    .await;
+
+    let _ = sqlx::query(
+        r#"DELETE FROM setlistsongs WHERE "IDSong" = $1"#,
+    )
+    .bind(id)
+    .execute(&pool)
+    .await;
+
+    match sqlx::query(r#"DELETE FROM songs WHERE "ID" = $1"#)
+        .bind(id)
+        .execute(&pool)
+        .await
+    {
+        Ok(_) => (
+            [(
+                header::HeaderName::from_static("hx-trigger"),
+                "song-deleted",
+            )],
+            Html("<p class=\"text-green-400\">Música apagada com sucesso!</p>".to_string()),
+        )
+            .into_response(),
+        Err(error) => {
+            tracing::error!(error = %error, "song delete failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html("<p class=\"text-red-400\">Não foi possível apagar a música.</p>".to_string()),
             )
                 .into_response()
         }
@@ -3471,6 +3844,41 @@ async fn main() {
     .execute(&pool)
     .await;
 
+    // Add is_demo column to users table if it doesn't exist
+    let _ = sqlx::query(
+        r#"
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE
+        "#,
+    )
+    .execute(&pool)
+    .await;
+
+    // Ensure demo user exists (id=2 is reserved for demo)
+    let demo_exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE is_demo = TRUE)")
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(false);
+    if !demo_exists {
+        let _ = sqlx::query(
+            r#"
+            INSERT INTO users (email, nome, password_hash, perfil, ativo, is_demo)
+            VALUES ('demo@praisechords.local', 'Demo', crypt('demo123', gen_salt('bf')), 3, TRUE, TRUE)
+            ON CONFLICT (email) DO UPDATE SET is_demo = TRUE, perfil = 3, nome = 'Demo', igreja = NULL
+            "#,
+        )
+        .execute(&pool)
+        .await;
+    } else {
+        // Corrigir utilizador demo existente: nome "Demo", manter perfil admin, sem igreja
+        let _ = sqlx::query(
+            r#"
+            UPDATE users SET nome = 'Demo', igreja = NULL, perfil = 3 WHERE is_demo = TRUE
+            "#,
+        )
+        .execute(&pool)
+        .await;
+    }
+
     let _ = sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_user_activity_created_at ON user_activity ("createdAt")
@@ -3549,6 +3957,74 @@ async fn main() {
     .execute(&pool)
     .await;
 
+    // Migrate Coros codes to Wxxxx format (ordered alphabetically by name)
+    let _ = sqlx::query(
+        r#"
+        WITH numbered AS (
+            SELECT "ID", ROW_NUMBER() OVER (ORDER BY COALESCE("Name", '') ASC, "ID" ASC) AS rn
+            FROM songs
+            WHERE "GenreType" = 1
+        )
+        UPDATE songs
+        SET "Code" = 'W' || LPAD(numbered.rn::text, 4, '0')
+        FROM numbered
+        WHERE songs."ID" = numbered."ID"
+        "#,
+    )
+    .execute(&pool)
+    .await;
+
+    // Migrate EBD codes to EDxxxx format (ordered alphabetically by name)
+    let _ = sqlx::query(
+        r#"
+        WITH numbered AS (
+            SELECT "ID", ROW_NUMBER() OVER (ORDER BY COALESCE("Name", '') ASC, "ID" ASC) AS rn
+            FROM songs
+            WHERE "GenreType" = 2
+        )
+        UPDATE songs
+        SET "Code" = 'ED' || LPAD(numbered.rn::text, 4, '0')
+        FROM numbered
+        WHERE songs."ID" = numbered."ID"
+        "#,
+    )
+    .execute(&pool)
+    .await;
+
+    // Migrate Hinos Harpa codes to HMxxxx format (ordered alphabetically by name)
+    let _ = sqlx::query(
+        r#"
+        WITH numbered AS (
+            SELECT "ID", ROW_NUMBER() OVER (ORDER BY COALESCE("Name", '') ASC, "ID" ASC) AS rn
+            FROM songs
+            WHERE "GenreType" = 3
+        )
+        UPDATE songs
+        SET "Code" = 'HM' || LPAD(numbered.rn::text, 4, '0')
+        FROM numbered
+        WHERE songs."ID" = numbered."ID"
+        "#,
+    )
+    .execute(&pool)
+    .await;
+
+    // Migrate Outros Arranjos codes to OHxxxx format (ordered alphabetically by name)
+    let _ = sqlx::query(
+        r#"
+        WITH numbered AS (
+            SELECT "ID", ROW_NUMBER() OVER (ORDER BY COALESCE("Name", '') ASC, "ID" ASC) AS rn
+            FROM songs
+            WHERE "GenreType" = 4
+        )
+        UPDATE songs
+        SET "Code" = 'OH' || LPAD(numbered.rn::text, 4, '0')
+        FROM numbered
+        WHERE songs."ID" = numbered."ID"
+        "#,
+    )
+    .execute(&pool)
+    .await;
+
     let static_dir: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/static");
     let static_files = get_service(ServeDir::new(static_dir));
 
@@ -3581,8 +4057,10 @@ async fn main() {
         )
         .route("/htmx/users/:id/toggle", post(toggle_user_active_htmx))
         .route("/htmx/users/:id/delete", post(delete_user_htmx))
+        .route("/htmx/admin/cleanup-demo", post(cleanup_demo_htmx))
         .route("/htmx/songs", get(list_songs_htmx))
         .route("/htmx/songs/new", get(song_new_htmx).post(create_song_htmx))
+        .route("/htmx/songs/next-code", get(next_code_htmx))
         .route("/htmx/songs/:id", get(song_detail_htmx))
         .route(
             "/htmx/songs/:id/edit",
@@ -3593,6 +4071,7 @@ async fn main() {
             "/htmx/songs/:id/setlists/new",
             get(new_setlist_for_song_form),
         )
+        .route("/htmx/songs/:id/delete", delete(delete_song_htmx))
         .route("/htmx/setlists", get(list_setlists_htmx))
         .route("/htmx/setlists/new", get(new_setlist_form))
         .route("/api/setlists", post(create_setlist))
