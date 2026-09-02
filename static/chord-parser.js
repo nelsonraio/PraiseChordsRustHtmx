@@ -36,10 +36,23 @@
       const part = parts[i];
       const hasChord = part.chord !== '';
       if (hasChord) {
-        // Se a sílaba anterior não tem acorde, agrupar ambas para não quebrar entre elas
+        // Se a sílaba anterior não tem acorde, agrupar apenas a ÚLTIMA palavra
+        // com o acorde (para não quebrarem entre si). O resto do texto antes do
+        // acorde fica fora do grupo e pode quebrar de linha normalmente — assim,
+        // em modo colunas, o texto não salta todo para a linha de baixo.
         if (i > 0 && parts[i - 1].chord === '') {
-          const prev = parts[i - 1];
-          html += "<span class='keep-together'><span class='chord-block'><span class='chord'></span><span class='lyric'>" + prev.lyric + "</span></span><span class='chord-block'><span class='chord'>" + part.chord + "</span><span class='lyric'>" + part.lyric + '</span></span></span>';
+          const prevLyric = parts[i - 1].lyric;
+          const lastSpace = prevLyric.lastIndexOf(' ');
+          const head = lastSpace === -1 ? '' : prevLyric.slice(0, lastSpace + 1);
+          const tail = lastSpace === -1 ? prevLyric : prevLyric.slice(lastSpace + 1);
+          if (head !== '') {
+            html += "<span class='chord-block'><span class='chord'></span><span class='lyric'>" + head + '</span></span>';
+          }
+          if (tail !== '') {
+            html += "<span class='keep-together'><span class='chord-block'><span class='chord'></span><span class='lyric'>" + tail + "</span></span><span class='chord-block'><span class='chord'>" + part.chord + "</span><span class='lyric'>" + part.lyric + '</span></span></span>';
+          } else {
+            html += "<span class='chord-block'><span class='chord'>" + part.chord + "</span><span class='lyric'>" + part.lyric + '</span></span>';
+          }
         } else {
           html += "<span class='chord-block'><span class='chord'>" + part.chord + "</span><span class='lyric'>" + part.lyric + '</span></span>';
         }

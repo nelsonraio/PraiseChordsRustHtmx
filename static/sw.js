@@ -1,4 +1,4 @@
-const CACHE_NAME = 'praisechords-v4';
+const CACHE_NAME = 'praisechords-v12';
 const STATIC_ASSETS = [
   '/',
   '/static/css/tailwind.css',

@@ -22,6 +22,7 @@
       <div class="flex flex-wrap items-center gap-3"><h3 class="font-semibold text-white">{{ song.name }}</h3>{% if song.org_name != "" %}<span class="text-gray-300 text-sm">{{ song.org_name }}{% if song.composer != "" %} ({{ song.composer }}){% endif %}</span>{% endif %}</div>
     </div>
     <p class="text-xs text-gray-400 mt-2">Artistas: {% if song.artistas != "" %}{{ song.artistas }}{% else %}N/A{% endif %}</p>
+    {% if song.inserted_by != "" || song.updated_by != "" %}<p class="text-[9px] uppercase text-gray-400 mt-3">{% if song.inserted_by != "" %}Inserido por {{ song.inserted_by }}{% endif %}{% if song.inserted_by != "" && song.updated_by != "" && song.inserted_by != song.updated_by %} · {% endif %}{% if song.updated_by != "" && song.inserted_by != song.updated_by %}Corrigido por {{ song.updated_by }}{% endif %}</p>{% endif %}
   </li>
 {% endfor %}
 </ul>

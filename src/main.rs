@@ -106,6 +106,8 @@ struct SongListItem {
     org_key: String,
     youtube: Option<String>,
     favorite: bool,
+    inserted_by: String,
+    updated_by: String,
     can_edit: bool,
     can_delete: bool,
 }
@@ -499,6 +501,58 @@ async fn send_password_reset_email(
     Ok(())
 }
 
+#[cfg(test)]
+mod template_tests {
+    use super::*;
+
+    #[test]
+    fn songs_list_shows_inserted_by() {
+        let song = SongListItem {
+            id: 1,
+            code: "W0001".into(),
+            name: "Teste".into(),
+            org_name: String::new(),
+            composer: String::new(),
+            artistas: String::new(),
+            org_key: String::new(),
+            youtube: None,
+            favorite: false,
+            inserted_by: "Utilizador Teste".into(),
+            updated_by: String::new(),
+            can_edit: true,
+            can_delete: false,
+        };
+        let tpl = SongsListTemplate { songs: vec![song] };
+        let html = tpl.render().expect("render falhou");
+        assert!(
+            html.contains("Inserido por Utilizador Teste"),
+            "o HTML não contém 'Inserido por':\n{html}"
+        );
+    }
+
+    #[test]
+    fn songs_list_hides_corrected_when_same_user() {
+        let song = SongListItem {
+            id: 1,
+            code: "W0001".into(),
+            name: "Teste".into(),
+            org_name: String::new(),
+            composer: String::new(),
+            artistas: String::new(),
+            org_key: String::new(),
+            youtube: None,
+            favorite: false,
+            inserted_by: "Ana".into(),
+            updated_by: "Ana".into(),
+            can_edit: true,
+            can_delete: false,
+        };
+        let tpl = SongsListTemplate { songs: vec![song] };
+        let html = tpl.render().expect("render falhou");
+        assert!(html.contains("Inserido por Ana"));
+        assert!(!html.contains("Corrigido por"), "não deve mostrar 'Corrigido por' quando é o mesmo utilizador:\n{html}");
+    }
+}
 fn normalize_newlines(value: String) -> String {
     value
         .replace("\\r\\n", "\n")
@@ -1932,6 +1986,8 @@ async fn list_songs_htmx(Extension(pool): Extension<PgPool>, jar: CookieJar) -> 
             org_key: s.org_key.unwrap_or_default(),
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: s.favorite.unwrap_or(false),
+            inserted_by: String::new(),
+            updated_by: String::new(),
             can_edit: is_programmer || user_id == s.id_insert_user,
             can_delete: is_programmer || (is_admin && user_id == s.id_insert_user),
         })
@@ -1975,6 +2031,8 @@ async fn list_songs_json(Extension(pool): Extension<PgPool>, jar: CookieJar) -> 
             org_key: s.org_key.unwrap_or_default(),
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: s.favorite.unwrap_or(false),
+            inserted_by: String::new(),
+            updated_by: String::new(),
             can_edit: is_programmer || user_id == s.id_insert_user,
             can_delete: is_programmer || (is_admin && user_id == s.id_insert_user),
         })
@@ -2025,6 +2083,8 @@ async fn library_page(
             org_key: song.org_key.unwrap_or_default(),
             youtube: song.youtube.filter(|url| !url.trim().is_empty()),
             favorite: user_id.is_some() || song.favorite.unwrap_or(false),
+            inserted_by: String::new(),
+            updated_by: String::new(),
             can_edit: is_programmer || current_user_id == song.id_insert_user,
             can_delete: is_programmer || (is_admin && current_user_id == song.id_insert_user),
         })
@@ -2105,6 +2165,8 @@ async fn search_songs(
             org_key: String::new(),
             youtube: None,
             favorite: false,
+            inserted_by: String::new(),
+            updated_by: String::new(),
             can_edit: is_programmer || user_id == owner,
             can_delete: is_programmer || (is_admin && user_id == owner),
         })
@@ -2198,6 +2260,26 @@ async fn search_songs_htmx(
     };
     let is_admin = is_admin_user(&pool, &jar).await;
 
+    // Nomes de quem inseriu/corrigiu (uma única query para todos os resultados)
+    let mut user_ids: Vec<i32> = rows
+        .iter()
+        .filter_map(|s| s.id_insert_user.or(s.id_update_user))
+        .collect();
+    user_ids.sort_unstable();
+    user_ids.dedup();
+    let mut user_names: std::collections::HashMap<i32, String> = std::collections::HashMap::new();
+    if !user_ids.is_empty() {
+        let name_rows: Vec<(i32, Option<String>)> =
+            sqlx::query_as("SELECT id, nome FROM users WHERE id = ANY($1)")
+                .bind(&user_ids)
+                .fetch_all(&pool)
+                .await
+                .unwrap_or_default();
+        for (id, nome) in name_rows {
+            user_names.insert(id, nome.unwrap_or_default());
+        }
+    }
+
     let list: Vec<SongListItem> = rows
         .into_iter()
         .map(|s| SongListItem {
@@ -2210,6 +2292,8 @@ async fn search_songs_htmx(
             org_key: s.org_key.unwrap_or_default(),
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: s.favorite.unwrap_or(false) || fav_filter_active,
+            inserted_by: s.id_insert_user.and_then(|id| user_names.get(&id).cloned()).unwrap_or_default(),
+            updated_by: s.id_update_user.and_then(|id| user_names.get(&id).cloned()).unwrap_or_default(),
             can_edit: is_programmer || user_id == s.id_insert_user,
             can_delete: is_programmer || (is_admin && user_id == s.id_insert_user),
         })
