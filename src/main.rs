@@ -157,6 +157,7 @@ struct GenreOption {
 struct GenreTypeRow {
     id: i32,
     desc: String,
+    #[allow(dead_code)]
     prefix: String,
 }
 
@@ -242,12 +243,31 @@ struct ResetPasswordTemplate {
 struct SmtpConfig {
     host: String,
     port: u16,
-    secure: bool,
+    secure: SmtpSecureMode,
     user: Option<String>,
     password: Option<String>,
     from: String,
     app_base_url: String,
     reset_ttl_minutes: i64,
+}
+
+/// Modo de segurança SMTP:
+/// - `Tls`: TLS implícito desde o início da ligação (porta 465)
+/// - `StartTls`: plaintext seguido de STARTTLS (porta 587)
+/// - `None`: sem encriptação (apenas para Mailpit local)
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum SmtpSecureMode {
+    None,
+    StartTls,
+    Tls,
+}
+
+fn parse_smtp_secure(value: Option<String>) -> SmtpSecureMode {
+    match value.map(|value| value.to_lowercase()).as_deref() {
+        Some("true" | "1" | "yes" | "tls" | "ssl") => SmtpSecureMode::Tls,
+        Some("starttls") => SmtpSecureMode::StartTls,
+        _ => SmtpSecureMode::None,
+    }
 }
 
 #[derive(Template)]
@@ -379,9 +399,7 @@ fn smtp_config() -> SmtpConfig {
         port: env_value("SMTP_PORT")
             .and_then(|value| value.parse().ok())
             .unwrap_or(1025),
-        secure: env_value("SMTP_SECURE")
-            .map(|value| matches!(value.to_lowercase().as_str(), "true" | "1" | "yes"))
-            .unwrap_or(false),
+        secure: parse_smtp_secure(env_value("SMTP_SECURE")),
         user: env_value("SMTP_USER"),
         password: env_value("SMTP_PASSWORD"),
         from: env_value("SMTP_FROM")
@@ -410,6 +428,14 @@ async fn send_password_reset_email(
     recipient: &str,
     reset_link: &str,
 ) -> Result<(), String> {
+    // Log de diagnóstico: mostra a ligação que vai ser tentada (sem revelar a password)
+    tracing::info!(
+        host = %config.host,
+        port = config.port,
+        secure = ?config.secure,
+        authenticated = config.user.is_some(),
+        "a tentar enviar email de recuperação via SMTP"
+    );
     let from: Mailbox = config
         .from
         .parse()
@@ -427,11 +453,16 @@ async fn send_password_reset_email(
         ))
         .map_err(|error| error.to_string())?;
 
-    let transport = if config.secure {
-        AsyncSmtpTransport::<Tokio1Executor>::relay(&config.host)
-            .map_err(|error| error.to_string())?
-    } else {
-        AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&config.host)
+    let transport = match config.secure {
+        SmtpSecureMode::Tls => {
+            AsyncSmtpTransport::<Tokio1Executor>::relay(&config.host)
+                .map_err(|error| error.to_string())?
+        }
+        SmtpSecureMode::StartTls => {
+            AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&config.host)
+                .map_err(|error| error.to_string())?
+        }
+        SmtpSecureMode::None => AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&config.host),
     }
     .port(config.port);
     let transport = match (&config.user, &config.password) {
@@ -445,7 +476,26 @@ async fn send_password_reset_email(
     transport
         .send(message)
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| {
+            // Constrói a cadeia completa de causas do erro (ex.: connection -> io -> dns)
+            let mut details = error.to_string();
+            let mut source = std::error::Error::source(&error);
+            while let Some(cause) = source {
+                details.push_str(&format!(" | causado por: {cause}"));
+                source = cause.source();
+            }
+            // Classificação rápida para debug de conectividade
+            if error.is_tls() {
+                details.push_str(" [TLS: SMTP_SECURE/porta incompatível com o servidor?]");
+            }
+            if error.is_timeout() {
+                details.push_str(" [TIMEOUT: porta bloqueada por firewall/security list/ISP?]");
+            }
+            if error.is_response() {
+                details.push_str(" [SERVIDOR SMTP REJEITOU: verifique o código na mensagem, ex. 535=credenciais, 550/571=remetente não aprovado]");
+            }
+            details
+        })?;
     Ok(())
 }
 
@@ -1883,7 +1933,7 @@ async fn list_songs_htmx(Extension(pool): Extension<PgPool>, jar: CookieJar) -> 
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: s.favorite.unwrap_or(false),
             can_edit: is_programmer || user_id == s.id_insert_user,
-            can_delete: is_programmer || is_admin,
+            can_delete: is_programmer || (is_admin && user_id == s.id_insert_user),
         })
         .collect();
 
@@ -1926,7 +1976,7 @@ async fn list_songs_json(Extension(pool): Extension<PgPool>, jar: CookieJar) -> 
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: s.favorite.unwrap_or(false),
             can_edit: is_programmer || user_id == s.id_insert_user,
-            can_delete: is_programmer || is_admin,
+            can_delete: is_programmer || (is_admin && user_id == s.id_insert_user),
         })
         .collect();
 
@@ -1976,7 +2026,7 @@ async fn library_page(
             youtube: song.youtube.filter(|url| !url.trim().is_empty()),
             favorite: user_id.is_some() || song.favorite.unwrap_or(false),
             can_edit: is_programmer || current_user_id == song.id_insert_user,
-            can_delete: is_programmer || is_admin,
+            can_delete: is_programmer || (is_admin && current_user_id == song.id_insert_user),
         })
         .collect();
     let template = LibraryTemplate {
@@ -2056,7 +2106,7 @@ async fn search_songs(
             youtube: None,
             favorite: false,
             can_edit: is_programmer || user_id == owner,
-            can_delete: is_programmer || is_admin,
+            can_delete: is_programmer || (is_admin && user_id == owner),
         })
         .collect();
 
@@ -2161,7 +2211,7 @@ async fn search_songs_htmx(
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: s.favorite.unwrap_or(false) || fav_filter_active,
             can_edit: is_programmer || user_id == s.id_insert_user,
-            can_delete: is_programmer || is_admin,
+            can_delete: is_programmer || (is_admin && user_id == s.id_insert_user),
         })
         .collect();
 
@@ -3717,11 +3767,116 @@ async fn delete_song_htmx(
 }
 
 fn device_hash(headers: &HeaderMap) -> String {
-    let user_agent = headers
+    let ua = headers
         .get("user-agent")
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("unknown");
-    format!("{:x}", Sha256::digest(user_agent.as_bytes()))
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let mut hasher = Sha256::new();
+    hasher.update(ua);
+    format!("{:x}", hasher.finalize())
+}
+
+/// Create a Stripe Checkout Session for donations
+async fn create_stripe_checkout(
+    Extension(_pool): Extension<PgPool>,
+    Query(params): Query<HashMap<String, String>>,
+    _jar: CookieJar,
+) -> impl IntoResponse {
+    let amount = params
+        .get("amount")
+        .and_then(|a| a.parse::<i64>().ok())
+        .unwrap_or(500); // Default 5€ in cents
+
+    // Minimum amount: 1€ (100 cents)
+    if amount < 100 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Valor mínimo: 1€"})),
+        )
+            .into_response();
+    }
+
+    let stripe_secret = std::env::var("STRIPE_SECRET_KEY").unwrap_or_default();
+    if stripe_secret.is_empty() {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Stripe não configurado"})),
+        )
+            .into_response();
+    }
+
+    let app_url = std::env::var("APP_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
+
+    // Create Stripe Checkout Session via API
+    let client = reqwest::Client::new();
+    let form = [
+        ("payment_method_types[]", "card"),
+        ("line_items[0][price_data][currency]", "eur"),
+        (
+            "line_items[0][price_data][product_data][name]",
+            "Donativo PraiseChords",
+        ),
+        (
+            "line_items[0][price_data][product_data][description]",
+            "Apoio ao projeto PraiseChords",
+        ),
+        (
+            "line_items[0][price_data][unit_amount]",
+            &amount.to_string(),
+        ),
+        ("line_items[0][quantity]", "1"),
+        ("mode", "payment"),
+        (
+            "success_url",
+            &format!("{}/app?donation=success", app_url),
+        ),
+        (
+            "cancel_url",
+            &format!("{}/app?donation=cancel", app_url),
+        ),
+        ("locale", "pt"),
+    ];
+
+    let response = client
+        .post("https://api.stripe.com/v1/checkout/sessions")
+        .header("Authorization", format!("Bearer {}", stripe_secret))
+        .form(&form)
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let body = resp.text().await.unwrap_or_default();
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
+                    if let Some(url) = json.get("url").and_then(|u| u.as_str()) {
+                        return (
+                            StatusCode::OK,
+                            Json(serde_json::json!({"url": url})),
+                        )
+                            .into_response();
+                    }
+                }
+                tracing::error!("Stripe API error: {}", body);
+            } else {
+                let error_text = resp.text().await.unwrap_or_default();
+                tracing::error!("Stripe API error: {}", error_text);
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Erro ao criar sessão de pagamento"})),
+            )
+                .into_response()
+        }
+        Err(error) => {
+            tracing::error!(error = %error, "Stripe request failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Erro de comunicação com Stripe"})),
+            )
+                .into_response()
+        }
+    }
 }
 
 async fn get_chord_settings(
@@ -4107,6 +4262,8 @@ async fn main() {
             "/api/setlists/:id/songs/:song_id",
             delete(remove_song_from_setlist),
         )
+        // Stripe donation endpoint
+        .route("/htmx/donate/stripe", post(create_stripe_checkout))
         .nest_service("/static", static_files)
         .layer(middleware::from_fn(no_cache_html))
         .layer(Extension(pool));

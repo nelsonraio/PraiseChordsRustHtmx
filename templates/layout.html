@@ -3,6 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#16213e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PraiseChords">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
   <link rel="stylesheet" href="/static/tailwind.css">
   <link rel="stylesheet" href="/static/css/fontawesome.min.css">
   <style>
@@ -25,9 +32,9 @@
       transition: transform 200ms ease, filter 200ms ease, box-shadow 200ms ease;
     }
     .quick-action-card:hover {
-      transform: translateY(-4px) scale(1.03);
-      filter: brightness(1.08);
-      box-shadow: 0 12px 24px rgb(0 0 0 / 0.28);
+      transform: translateY(-2px) scale(1.02);
+      filter: brightness(1.05);
+      box-shadow: 0 8px 16px rgb(0 0 0 / 0.25);
     }
   </style>
   <title>PraiseChords</title>
@@ -103,11 +110,44 @@
       Alpine.data('chordViewer', (songId, initialFavorite, initialFontSize = 16, initialColumnCount = 0, initialAccidentals = 0, initialTranspose = 0, isPublic = false) => ({
         fav: initialFavorite === true || initialFavorite === 'true', fontSize: initialFontSize, columnCount: initialColumnCount,
         accidentals: initialAccidentals, transposeSteps: initialTranspose, chordProRaw: '', renderedChordPro: '', menuVisible: false, fontMenu: false, transposeMenu: false, menuTimer: null,
-        pinchStartDistance: 0, pinchStartFontSize: 16,
-        onTouchStart(e) { if (e.touches.length === 2) { this.pinchStartDistance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); this.pinchStartFontSize = this.fontSize; } },
-        onTouchMove(e) { if (e.touches.length === 2 && this.pinchStartDistance > 0) { e.preventDefault(); const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); const ratio = dist / this.pinchStartDistance; this.fontSize = Math.min(Math.max(Math.round((this.pinchStartFontSize * ratio) * 10) / 10, 8), 32); } },
-        onTouchEnd() { this.pinchStartDistance = 0; },
-        init() { this.chordProRaw = this.normalizeNewlines(this.$refs.chordRaw ? this.$refs.chordRaw.textContent : ''); this.loadSettings(songId); this.render(); if (isPublic) { ['fontSize', 'columnCount', 'accidentals', 'transposeSteps'].forEach((key) => this.$watch(key, () => this.saveLocalSettings())); } },
+        pinchStartDistance: 0, pinchStartFontSize: 16, swipeStartX: 0, swipeStartY: 0, swipeStartTime: 0,
+        onTouchStart(e) { 
+          if (e.touches.length === 2) { 
+            this.pinchStartDistance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); 
+            this.pinchStartFontSize = this.fontSize; 
+          } else if (e.touches.length === 1) {
+            this.swipeStartX = e.touches[0].clientX;
+            this.swipeStartY = e.touches[0].clientY;
+            this.swipeStartTime = Date.now();
+          }
+        },
+        onTouchMove(e) { 
+          if (e.touches.length === 2 && this.pinchStartDistance > 0) { 
+            e.preventDefault(); 
+            const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); 
+            const ratio = dist / this.pinchStartDistance; 
+            this.fontSize = Math.min(Math.max(Math.round((this.pinchStartFontSize * ratio) * 10) / 10, 8), 32); 
+          } 
+        },
+        onTouchEnd(e) { 
+          this.pinchStartDistance = 0; 
+          if (e.changedTouches.length === 1 && this.swipeStartX !== 0) {
+            const touch = e.changedTouches[0];
+            const deltaX = touch.clientX - this.swipeStartX;
+            const deltaY = touch.clientY - this.swipeStartY;
+            const deltaTime = Date.now() - this.swipeStartTime;
+            const absX = Math.abs(deltaX);
+            const absY = Math.abs(deltaY);
+            if (absX > 40 && absX > absY * 1.2 && deltaTime < 600) {
+              if (deltaX < 0) { this.navigateToNext(); } else { this.navigateToPrevious(); }
+            }
+          }
+          this.swipeStartX = 0;
+          this.swipeStartY = 0;
+        },
+        navigateToNext() { const nextBtn = document.querySelector('a[title="Próxima música"]'); if (nextBtn) window.location.href = nextBtn.href; },
+        navigateToPrevious() { const prevBtn = document.querySelector('a[title="Música anterior"]'); if (prevBtn) window.location.href = prevBtn.href; },
+        init() { this.chordProRaw = this.normalizeNewlines(this.$refs.chordRaw ? this.$refs.chordRaw.textContent : ''); this.loadSettings(songId); this.render(); if (isPublic) { ['fontSize', 'columnCount', 'accidentals', 'transposeSteps'].forEach((key) => this.$watch(key, () => this.saveLocalSettings())); } window.addEventListener('touchstart', (e) => this.onTouchStart(e), { passive: true }); window.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false }); window.addEventListener('touchend', (e) => this.onTouchEnd(e)); },
         normalizeNewlines(value) { return String(value || '').replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n'); },
         contentStyle() { const style = { fontSize: this.fontSize + 'px' }; if (this.columnCount) { style.columnCount = String(this.columnCount); style.columnGap = '2rem'; style.columnFill = 'auto'; style.height = '100%'; style.overflowY = 'hidden'; style.overflowX = 'auto'; } return style; },
         render() { this.renderedChordPro = window.parseChordPro2 ? window.parseChordPro2(this.chordProRaw, this.transposeSteps, this.accidentals) : ''; },
@@ -276,6 +316,19 @@
       const close = ev.target.closest && ev.target.closest('[data-modal-close]');
       if (close) closeModal();
     });
+
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/static/sw.js')
+          .then((registration) => {
+            console.log('SW registered:', registration.scope);
+          })
+          .catch((error) => {
+            console.log('SW registration failed:', error);
+          });
+      });
+    }
   </script>
 </body>
 </html>

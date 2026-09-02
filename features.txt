@@ -1,0 +1,147 @@
+================================================================
+PRAISECHORDS — LISTA DE FUNCIONALIDADES (MARKETING)
+================================================================
+
+🎸 PRAISECHORDS — A PLATAFORMA COMPLETA PARA CIFRAS E LOUVOR
+
+----------------------------------------------------------------
+PESQUISA E ORGANIZAÇÃO
+----------------------------------------------------------------
+
+* PESQUISA INSTANTÂNEA — resultados em tempo real enquanto
+  escreves, sem recarregar a página.
+* PESQUISA POR CAMPO — procura por título, nome original,
+  artista, autor/compositor ou letra.
+* FILTROS AVANÇADOS — filtra por género musical (Louvor, Coros,
+  EBD, Harpa, etc.).
+* FILTRO ALFABÉTICO — navega pela biblioteca de A a Z com
+  seleção visual da letra ativa.
+* ORDENAÇÃO FLEXÍVEL — por mais recentes ou alfabeticamente.
+* HISTÓRICO DE PESQUISAS — as tuas últimas pesquisas ficam
+  guardadas, a um clique de distância.
+* CÓDIGOS AUTOMÁTICOS — cada música recebe um código único
+  gerado automaticamente pelo género (ex.: W0001, HM0001).
+
+----------------------------------------------------------------
+BIBLIOTECA DE MÚSICAS
+----------------------------------------------------------------
+
+* BIBLIOTECA DIGITAL COMPLETA — todas as tuas cifras num só
+  lugar, organizadas e acessíveis em segundos.
+* FAVORITOS — marca as músicas que mais usas e acede-lhes num
+  toque.
+* CONVERSOR INTELIGENTE DE CIFRAS — cola uma cifra em texto
+  simples (estilo CifraClub) e o sistema converte-a
+  automaticamente para formato ChordPro profissional.
+* EDITOR INTEGRADO — cria e edita cifras diretamente na
+  plataforma, com pré-visualização em tempo real.
+* CONTADOR DE VISUALIZAÇÕES — sabe que músicas são as mais
+  tocadas na tua igreja/grupo.
+* CONTROLO DE TOM ORIGINAL E BPM — regista o tom e o tempo de
+  cada música.
+* LIGAÇÕES AO YOUTUBE — associa o vídeo da música e reproduz-o
+  sem sair da plataforma.
+
+----------------------------------------------------------------
+VISUALIZADOR DE CIFRAS DE NÍVEL PROFISSIONAL
+----------------------------------------------------------------
+
+* DESTAQUE DE ACORDES — acordes realçados para leitura rápida
+  durante o culto.
+* TRANSPOSIÇÃO INSTANTÂNEA — muda o tom da música para cima ou
+  para baixo, acorde a acorde.
+* SUSTENIDOS OU BEMÓIS — alterna entre notação # e b com um
+  clique.
+* TAMANHO DE LETRA AJUSTÁVEL — de 8 a 32pt, com passos finos
+  de 0.5.
+* MODO COLUNAS — dispõe a cifra em 2, 3 ou 4 colunas para caber
+  no ecrã.
+* ZOOM POR GESTO (PINCH-TO-ZOOM) — otimizado para ecrãs táteis.
+* PREFERÊNCIAS POR MÚSICA — cada música guarda as tuas
+  definições (letra, colunas, transposição) no teu perfil e no
+  teu dispositivo.
+* MODO ESCURO — interface pensada para uso em ambientes com
+  pouca luz.
+
+----------------------------------------------------------------
+SETLISTS — PREPARA O CULTO EM MINUTOS
+----------------------------------------------------------------
+
+* CRIAÇÃO DE SETLISTS — agrupa músicas por culto, ensaio ou
+  evento.
+* ADIÇÃO RÁPIDA — adiciona músicas à setlist diretamente da
+  pesquisa ou da cifra.
+* REORDENAÇÃO — organiza a ordem das músicas arrastando.
+* MODO APRESENTAÇÃO (PLAYER) — navega entre músicas da setlist
+  em ecrã cheio, com as preferências de cada música já
+  aplicadas — ideal para projetar ou tocar ao vivo.
+* PARTILHA PÚBLICA — gera um link para partilhar a setlist com
+  a equipa, com acesso ao player, sem precisar de conta.
+
+----------------------------------------------------------------
+GESTÃO DE UTILIZADORES E SEGURANÇA
+----------------------------------------------------------------
+
+* AUTENTICAÇÃO SEGURA — sessões com JWT, passwords encriptadas
+  com bcrypt.
+* NÍVEIS DE ACESSO — perfis de utilizador, administrador e
+  programador, com permissões por funcionalidade.
+* RECUPERAÇÃO DE PASSWORD POR EMAIL — tokens seguros com
+  validade limitada, enviados por email transacional.
+* GESTÃO DE UTILIZADORES — os administradores podem criar,
+  editar, ativar/desativar e remover utilizadores.
+* EDIÇÃO CONTROLADA — apenas o criador da cifra (ou
+  administradores) pode editá-la.
+
+----------------------------------------------------------------
+ESTATÍSTICAS
+----------------------------------------------------------------
+
+* MÚSICAS MAIS VISTAS — descobre o repertório mais usado.
+* VISUALIZAÇÕES RECENTES — vê o que a comunidade está a tocar
+  agora.
+* PAINEL PESSOAL — contadores de cifras, setlists e favoritas
+  logo na entrada.
+
+----------------------------------------------------------------
+FEITO PARA USAR EM QUALQUER LUGAR
+----------------------------------------------------------------
+
+* PROGRESSIVE WEB APP (PWA) — instala no telemóvel/tablet como
+  uma app nativa, sem loja de aplicações.
+* OTIMIZADO PARA MOBILE — interface adaptativa, do telemóvel ao
+  desktop.
+* MENU INTELIGENTE — um toque em qualquer sítio mostra os
+  controlos na visualização de cifras; desaparece sozinho para
+  máxima área de leitura.
+* NAVEGAÇÃO ENTRE MÚSICAS — botões "Anterior/Próxima" para
+  percorrer a lista sem voltar atrás.
+
+----------------------------------------------------------------
+APOIO AO PROJETO
+----------------------------------------------------------------
+
+* DONATIVOS VIA STRIPE — pagamento seguro por cartão,
+  integrado na plataforma.
+
+----------------------------------------------------------------
+TECNOLOGIA DE PONTA (POR TRÁS DOS PANOS)
+----------------------------------------------------------------
+
+* ESCRITO EM RUST — desempenho e fiabilidade de nível
+  empresarial, com respostas ultrarrápidas.
+* HTMX + ALPINE.JS — experiência fluida tipo SPA sem pesadez de
+  frameworks.
+* POSTGRESQL — dados seguros e escaláveis.
+* PARSER CHORDPRO PRÓPRIO — renderização e transposição de
+  acordes no navegador, sem esperar pelo servidor.
+
+----------------------------------------------------------------
+TAGLINE
+----------------------------------------------------------------
+
+"PraiseChords — todas as tuas cifras, setlists e transposições
+num só sítio. Do telemóvel ao ecrã do culto."
+
+================================================================
+

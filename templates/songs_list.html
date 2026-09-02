@@ -6,9 +6,8 @@
 <ul class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-3 sm:px-4 pb-4">
 {% for song in songs %}
   <li class="p-4 bg-gray-700 rounded-lg hover:bg-gray-600 transition shadow-md relative">
-    {% if song.code != "" %}<span class="absolute top-2 right-2 px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded">{{ song.code }}</span>{% endif %}
     <div class="flex flex-col gap-2">
-      <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
         <div class="flex items-center gap-1 bg-gray-800/60 border border-gray-600/50 rounded-full px-2 py-1">
           <div x-data="favButton({{ song.id }}, {{ song.favorite }})" class="inline-block"><button @click="toggle()" :class="fav ? 'text-yellow-400 hover:text-yellow-300' : 'text-gray-400 hover:text-yellow-400'" class="w-8 h-8 flex items-center justify-center text-sm rounded-full transition-all" title="Adicionar aos favoritos"><i :class="fav ? 'fas fa-star text-lg' : 'far fa-star text-lg'"></i></button></div>
           {% if song.org_key != "" %}<span class="px-2 py-1 bg-yellow-400 text-black text-xs font-bold rounded-full">{{ song.org_key }}</span>{% endif %}
@@ -18,6 +17,7 @@
           {% if song.can_delete %}<button hx-delete="/htmx/songs/{{ song.id }}/delete" hx-confirm="Tem a certeza que deseja apagar esta música?" hx-target="closest li" hx-swap="outerHTML" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-white hover:bg-red-600/70 rounded-full transition" title="Apagar Música"><i class="fas fa-trash text-lg"></i></button>{% endif %}
           <button hx-get="/htmx/songs/{{ song.id }}" hx-target="#modal" hx-swap="innerHTML" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-700/70 rounded-full transition" title="Ver Cifra"><i class="fas fa-eye text-lg"></i></button>
         </div>
+        {% if song.code != "" %}<span class="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded">{{ song.code }}</span>{% endif %}
       </div>
       <div class="flex flex-wrap items-center gap-3"><h3 class="font-semibold text-white">{{ song.name }}</h3>{% if song.org_name != "" %}<span class="text-gray-300 text-sm">{{ song.org_name }}{% if song.composer != "" %} ({{ song.composer }}){% endif %}</span>{% endif %}</div>
     </div>

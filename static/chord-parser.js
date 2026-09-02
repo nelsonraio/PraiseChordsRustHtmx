@@ -25,7 +25,9 @@
     const parts = (line + ' ').split('[').map(function (part) {
       let chord = '', lyric = part;
       if (part.indexOf(']') !== -1) [chord, lyric] = part.split(']');
-      if (!lyric.trim()) lyric = ' ';
+      // Preservar espaços entre acordes (indicam duração/posição): só usar
+      // um espaço mínimo quando não há mesmo nenhum texto (ex.: acorde no fim da linha)
+      if (lyric === '') lyric = ' ';
       if (transpose) chord = transposeChord(chord, transpose);
       if (accidentals) chord = applyAccidentals(chord, accidentals);
       return { chord: chord, lyric: lyric };

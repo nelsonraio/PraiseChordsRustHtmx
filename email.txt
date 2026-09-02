@@ -1,0 +1,128 @@
+================================================================
+CONFIGURAR EMAIL — ORACLE CLOUD EMAIL DELIVERY (PraiseChords)
+================================================================
+
+O envio de emails (recuperação de password) usa o serviço
+"Email Delivery" da Oracle Cloud, configurado via variáveis SMTP_*
+no ficheiro .env.
+
+----------------------------------------------------------------
+PRÉ-REQUISITO: POLÍTICA IAM (só se não fores admin)
+----------------------------------------------------------------
+
+Se a tua conta OCI for admin da tenancy, salta este passo.
+Se não for, um admin tem de criar esta política:
+
+  Menu → Identity & Security → Policies → Create Policy:
+
+    Allow group <o-teu-grupo> to use email-family in tenancy
+
+----------------------------------------------------------------
+PASSO 1: CRIAR O "APPROVED SENDER" (o endereço "De")
+----------------------------------------------------------------
+
+1. Entra na consola: https://cloud.oracle.com
+2. ATENÇÃO: primeiro escolhe a REGIÃO no canto superior direito
+   (ex.: EU Frankfurt, UK South (London)) — o approved sender só
+   existe na região em que o crias, e o SMTP_HOST do .env tem de
+   ser o dessa mesma região.
+3. Menu de navegação (☰) → Networking → Email Delivery →
+   Approved Senders
+4. "Create Approved Sender" → introduz o endereço exato que o
+   PraiseChords vai usar como remetente (ex.: noreply@oteudominio.pt)
+   → Create
+5. Fica ativo de imediato (não há aprovação manual), mas os emails
+   só têm boa entregabilidade se o domínio estiver verificado
+   (passo 2).
+
+----------------------------------------------------------------
+PASSO 2: (RECOMENDADO) VERIFICAR O DOMÍNIO + DKIM
+----------------------------------------------------------------
+
+1. Em Email Delivery → Email Domains → "Create Email Domain"
+   → usa o teu domínio (ex.: oteudominio.pt)
+2. Abre o domínio criado → "Generate DKIM" — a OCI mostra
+   registos DNS CNAME que tens de adicionar no teu fornecedor
+   de DNS
+3. Depois de os adicionar, clica "Retry verification" e espera
+   que fique "Active" (pode demorar minutos/horas)
+4. Adiciona também o SPF no DNS do domínio (registo TXT):
+
+      v=spf1 include:_spf.oraclecloudemaildelivery.com ~all
+
+----------------------------------------------------------------
+PASSO 3: GERAR AS CREDENCIAIS SMTP
+----------------------------------------------------------------
+
+1. Clica no ícone de perfil (canto superior direito) →
+   "My profile" (ou "User settings")
+2. Desce até "SMTP credentials" → "Generate SMTP credential"
+3. Dá um nome (ex.: praisechords-smtp) → Generate
+4. COPIA JÁ OS DOIS VALORES — a password nunca mais volta a ser
+   mostrada:
+   - Username: string longa tipo
+     "ocid1.user.oc1..aaaa...@ocid1.tenancy.oc1..aaaa..."
+   - Password: string aleatória
+
+   Nota: estas credenciais são GLOBAIS — funcionam em qualquer
+   região. Mas tens de enviar pelo endpoint da região onde
+   criaste o approved sender.
+
+----------------------------------------------------------------
+PASSO 4: CONFIGURAR O FICHEIRO .env DO PRAISECHORDS
+----------------------------------------------------------------
+
+SMTP_HOST=smtp.email.eu-frankfurt-1.oci.oraclecloud.com
+SMTP_PORT=587
+SMTP_SECURE=starttls
+
+ocid1.emailsender.oc1.eu-madrid-1.amaaaaaatc6xumyagrs3xsnvwrb4t2pmmv7zeb4osi6wesxnwpc5tl6hsorq
+
+SMTP_USER=ocid1.emailsender.oc1.eu-madrid-1.amaaaaaatc6xumyagrs3xsnvwrb4t2pmmv7zeb4osi6wesxnwpc5tl6hsorq
+SMTP_PASSWORD=a-password-copiada
+SMTP_FROM="PraiseChords <noreply@oteudominio.pt>"
+APP_BASE_URL=https://oteudominio.pt
+PASSWORD_RESET_TTL_MINUTES=60
+
+Notas importantes:
+- SMTP_HOST: smtp.email.<região>.oci.oraclecloud.com — a mesma
+  região do passo 1. O endpoint exato aparece em
+  Email Delivery → Configuration na consola.
+- Portas suportadas pela OCI:
+    · 587 com SMTP_SECURE=starttls  (recomendado)
+    · 465 com SMTP_SECURE=true      (TLS implícito)
+  A porta 25 é BLOQUEADA por defeito nas instâncias OCI.
+- SMTP_SECURE aceita: starttls | true | tls | ssl | false
+  (false = plaintext, apenas para o Mailpit local)
+- SMTP_FROM: tem de ser EXATAMENTE o approved sender do passo 1,
+  senão a OCI rejeita o envio.
+- APP_BASE_URL: o endereço público real — é o link que vai no
+  email de recuperação de password.
+
+----------------------------------------------------------------
+PASSO 5: ATIVAR E TESTAR
+----------------------------------------------------------------
+
+1. Reinicia o servidor (cargo run)
+2. Na app, usa "Esqueceu a password" com o teu email
+3. Verifica:
+   - O log do servidor — se falhar, o erro SMTP aparece
+     detalhado (auth, sender inválido, etc.)
+   - A caixa de entrada (e o spam, na primeira vez)
+   - Na consola OCI: Email Delivery → Metrics mostra os emails
+     enviados/entregues
+
+----------------------------------------------------------------
+CUSTOS, LIMITES E SUPPRESSION LIST
+----------------------------------------------------------------
+
+- O Email Delivery está incluído na tenancy com um limite
+  generoso de envios diários gratuitos; acima disso paga-se por
+  email. Para o volume de recuperações de password do
+  PraiseChords, na prática é gratuito.
+- Destinatários que devolvem bounce ou marcam spam entram
+  automaticamente na Suppression List da OCI (visível na consola:
+  Email Delivery → Suppression List). Se um utilizador diz
+  "não recebo email", verifica lá primeiro.
+
+================================================================
