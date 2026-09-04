@@ -1,11 +1,16 @@
 <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl">
-<h2 class="text-lg font-bold text-blue-400 px-4 pt-4 mb-3">Resultados da Pesquisa</h2>
+<h2 class="text-lg font-bold text-blue-400 px-4 pt-4 mb-3">{{ heading }}</h2>
 {% if songs.len() == 0 %}
-<p class="text-center text-gray-400 py-8">Nenhum resultado encontrado. Use a barra de pesquisa acima para encontrar cifras.</p>
+<p class="text-center text-gray-400 py-8">Nenhuma cifra encontrada.</p>
 {% else %}
 <ul class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-3 sm:px-4 pb-4">
 {% for song in songs %}
-  <li class="p-4 bg-gray-700 rounded-lg hover:bg-gray-600 transition shadow-md relative">
+  <li class="p-4 bg-gray-700 rounded-lg hover:bg-gray-600 transition shadow-md relative {% if song.is_pending %}border-2 border-yellow-500/70{% endif %}">
+    {% if song.is_pending %}
+    <div class="absolute top-2 right-2 flex items-center gap-2">
+      <span class="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-[10px] font-bold rounded uppercase">Pendente</span>
+    </div>
+    {% endif %}
     <div class="flex flex-col gap-2">
       <div class="flex items-center justify-between gap-3 flex-wrap">
         <div class="flex items-center gap-1 bg-gray-800/60 border border-gray-600/50 rounded-full px-2 py-1">
@@ -14,6 +19,7 @@
           {% if let Some(youtube_url) = song.youtube %}<button type="button" data-youtube-url="{{ youtube_url }}" onclick="window.praiseChordsYoutube.play(this.dataset.youtubeUrl)" class="w-8 h-8 flex items-center justify-center bg-gray-600 hover:bg-red-600 text-gray-300 hover:text-white rounded-full transition-all" title="Reproduzir YouTube"><i class="fas fa-play text-sm"></i></button>{% endif %}
           <button hx-get="/htmx/songs/{{ song.id }}/setlists" hx-target="#modal" hx-swap="innerHTML" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-700/70 rounded-full" title="Adicionar a setlist"><i class="fas fa-list text-lg"></i></button>
           {% if song.can_edit %}<button hx-get="/htmx/songs/{{ song.id }}/edit" hx-target="#modal" hx-swap="innerHTML" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-700/70 rounded-full transition" title="Editar Cifra"><i class="fas fa-pencil text-lg"></i></button>{% endif %}
+          {% if song.is_pending && song.can_approve %}<button hx-post="/htmx/songs/{{ song.id }}/approve" hx-confirm="Aprovar esta cifra?" hx-target="closest li" hx-swap="outerHTML" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-white hover:bg-green-600/70 rounded-full transition" title="Aprovar Música"><i class="fas fa-check text-lg"></i></button>{% endif %}
           {% if song.can_delete %}<button hx-delete="/htmx/songs/{{ song.id }}/delete" hx-confirm="Tem a certeza que deseja apagar esta música?" hx-target="closest li" hx-swap="outerHTML" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-white hover:bg-red-600/70 rounded-full transition" title="Apagar Música"><i class="fas fa-trash text-lg"></i></button>{% endif %}
           <button hx-get="/htmx/songs/{{ song.id }}" hx-target="#modal" hx-swap="innerHTML" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-700/70 rounded-full transition" title="Ver Cifra"><i class="fas fa-eye text-lg"></i></button>
         </div>

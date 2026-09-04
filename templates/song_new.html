@@ -19,6 +19,11 @@
     this.preview = window.parseChordPro2 ? window.parseChordPro2(this.chordPro, 0, 1) : '';
   },
   toggleView() { this.viewMode = this.viewMode === 'preview' ? 'chordpro' : 'preview'; },
+  alignChords() {
+    if (!window.alignChordsToSyllables) return;
+    this.chordPro = window.alignChordsToSyllables(this.chordPro);
+    this.renderPreview();
+  },
   insertTag(type) {
     const ta = this.$refs.chordPro;
     if (!ta) return;
@@ -113,9 +118,14 @@
       };
       document.head.appendChild(s1);
     }
+    if (!window.alignChordsToSyllables) {
+      var s3 = document.createElement('script');
+      s3.src = '/static/syllable-align.js';
+      document.head.appendChild(s3);
+    }
   }
 }" class="p-6 text-white">
-  <div class="mb-6 flex items-start justify-between gap-4"><div><h2 class="text-2xl font-bold">Nova Música</h2><p class="mt-1 text-sm text-gray-400">Preencha os dados da nova cifra</p></div><button type="button" data-modal-close class="rounded bg-gray-700 px-4 py-2 hover:bg-gray-600">Cancelar</button></div>
+  <div class="mb-6 flex items-start justify-between gap-4"><div><h2 class="text-2xl font-bold">Nova Música</h2><p class="mt-1 text-sm text-gray-400">Preencha os dados da nova cifra. A cifra fica visível a todos após aprovação de um moderador ou programador.</p></div><button type="button" data-modal-close class="rounded bg-gray-700 px-4 py-2 hover:bg-gray-600">Cancelar</button></div>
   <form hx-post="/htmx/songs/new" hx-target="#song-new-message" hx-swap="innerHTML" class="space-y-6">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Nome da Música<input name="name" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Nome da música" /></label><label class="block text-sm font-medium text-gray-300">Nome Original<input name="org_name" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Nome original" /></label></div>
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Compositor<input name="composer" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Compositor" /></label><label class="block text-sm font-medium text-gray-300">Artistas<input name="artistas" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Artistas / Banda" /></label></div>
@@ -136,6 +146,7 @@
           <button type="button" @click="insertTag('t')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="Título/Translation">{t: }</button>
           <button type="button" @click="insertTag('st')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="Subtítulo">{st: }</button>
           <button type="button" @click="insertTag('c')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="Comentário">{c: }</button>
+          <button type="button" @click="alignChords()" class="rounded bg-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-300" title="Realinhar acordes para o início das sílabas">🎵 Alinhar Acordes</button>
         </div>
         <textarea x-ref="chordPro" x-model="chordPro" @input="renderPreview()" name="chord_pro" rows="12" style="text-align: left;" class="w-full rounded border border-gray-300 bg-white px-4 py-2 font-mono text-sm text-black text-left" placeholder="[Acorde]letra ..."></textarea>
         <p class="mt-1 px-1 text-xs text-gray-500">Pce corrigir aqui qualquer pormenor do ChordPro convertido.</p>

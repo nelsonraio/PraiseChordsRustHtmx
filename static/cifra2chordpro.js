@@ -30,7 +30,11 @@
 
     try {
       var song = new CS.ChordSheetParser().parse(value);
-      return new CS.ChordProFormatter().format(song);
+      var formatted = new CS.ChordProFormatter().format(song);
+      // O ChordSheetParser cria por vezes um "acorde" vazio com os espaços de
+      // alinhamento anteriores ao primeiro acorde real da linha (ex.: "[   ]texto"),
+      // que aparece na pré-visualização como um colchete/chaveta vazia. Remove-se aqui.
+      return formatted.replace(/\[[ \t]*\]/g, '');
     } catch (e) {
       return value;
     }

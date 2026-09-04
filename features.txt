@@ -84,14 +84,14 @@ GESTÃO DE UTILIZADORES E SEGURANÇA
 
 * AUTENTICAÇÃO SEGURA — sessões com JWT, passwords encriptadas
   com bcrypt.
-* NÍVEIS DE ACESSO — perfis de utilizador, administrador e
+* NÍVEIS DE ACESSO — perfis de utilizador, colaborador e
   programador, com permissões por funcionalidade.
 * RECUPERAÇÃO DE PASSWORD POR EMAIL — tokens seguros com
   validade limitada, enviados por email transacional.
-* GESTÃO DE UTILIZADORES — os administradores podem criar,
+* GESTÃO DE UTILIZADORES — os colaboradores podem criar,
   editar, ativar/desativar e remover utilizadores.
 * EDIÇÃO CONTROLADA — apenas o criador da cifra (ou
-  administradores) pode editá-la.
+  colaboradores) pode editá-la.
 
 ----------------------------------------------------------------
 ESTATÍSTICAS

@@ -6,7 +6,7 @@
     <a href="/app" class="inline-flex mb-6 text-sm text-gray-300 hover:text-white">&larr; Dashboard</a>
     <div class="mb-8"><h1 class="text-4xl font-bold text-white mb-2">{{ title }}</h1><p class="text-gray-400">{{ subtitle }}</p></div>
     <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50">
-      {% if songs.len() == 0 %}<div class="text-center py-12"><div class="text-6xl mb-4">&#10084;&#65039;</div><h2 class="text-xl font-semibold text-white mb-2">Nenhuma m&uacute;sica favorita ainda</h2><p class="text-gray-400 mb-6">Comece a adicionar m&uacute;sicas aos seus favoritos!</p><a href="/app#buscar-cifras" class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"><i class="fas fa-search"></i> Explorar Cifras</a></div>{% else %}
+      {% if songs.len() == 0 %}<div class="text-center py-12"><div class="text-6xl mb-4">🔍</div><h2 class="text-xl font-semibold text-white mb-2">Nenhuma música encontrada</h2><p class="text-gray-400 mb-6">Ainda não há músicas para mostrar nesta página.</p><a href="/app#buscar-cifras" class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"><i class="fas fa-search"></i> Explorar Cifras</a></div>{% else %}
       <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl">
         <h2 class="text-lg font-bold text-blue-400 px-4 pt-4 mb-3">{{ title }}</h2>
         <ul class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-3 sm:px-4 pb-4">
@@ -26,6 +26,8 @@
               <div class="flex flex-wrap items-center gap-3"><h3 class="font-semibold text-white">{{ song.name }}</h3>{% if song.org_name != "" %}<span class="text-gray-300 text-sm">{{ song.org_name }}{% if song.composer != "" %} ({{ song.composer }}){% endif %}</span>{% endif %}</div>
             </div>
             <p class="text-xs text-gray-400 mt-2">Artistas: {% if song.artistas != "" %}{{ song.artistas }}{% else %}N/A{% endif %}</p>
+            {% if title == "Mais Acessadas" %}<div class="mt-2 inline-flex items-center gap-2.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-4 py-1 text-xs font-semibold text-emerald-300" title="Número de acessos"><i class="fas fa-eye text-[10px]"></i>&nbsp;&nbsp;{{ song.view_count }} acessos</div>{% endif %}
+            {% if song.is_pending %}<div class="mt-2 inline-flex items-center rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-xs font-semibold text-yellow-300" title="Aguarda aprovação de um moderador">⏳ Pendente</div>{% endif %}
           </li>
         {% endfor %}
         </ul>

@@ -20,14 +20,17 @@
     });
   }
 
-  function chordLine(line, transpose, accidentals) {
+  function chordLine(line, transpose, accidentals, hideChords) {
+    if (hideChords) line = line.replace(/^[ \t]+/, '');
     let html = "<div class='chordline'>";
     const parts = (line + ' ').split('[').map(function (part) {
       let chord = '', lyric = part;
       if (part.indexOf(']') !== -1) [chord, lyric] = part.split(']');
       // Preservar espaços entre acordes (indicam duração/posição): só usar
-      // um espaço mínimo quando não há mesmo nenhum texto (ex.: acorde no fim da linha)
-      if (lyric === '') lyric = ' ';
+      // um espaço mínimo quando não há mesmo nenhum texto (ex.: acorde no fim da linha).
+      // Em modo "sem acordes" este espaço extra não tem função e apareceria como
+      // espaço solto (ex.: início de linha que começa logo por um acorde).
+      if (lyric === '') lyric = hideChords ? '' : ' ';
       if (transpose) chord = transposeChord(chord, transpose);
       if (accidentals) chord = applyAccidentals(chord, accidentals);
       return { chord: chord, lyric: lyric };
@@ -65,22 +68,34 @@
     return html + '</div>';
   }
 
-  window.parseChordPro2 = function (chordPro, transpose, accidentals) {
+  window.parseChordPro2 = function (chordPro, transpose, accidentals, hideChords) {
     const simple = /^{(title|t|subtitle|st|comment|c|key|tempo):\s*(.*)}/;
     const normal = /^[A-Za-zÀ-ÖØ-öø-ÿ0-9\s,\.()\-:]*$/;
     const blockStart = /{(soc|start_of_chorus|sop|start_of_part|sov|start_of_verse|sob|start_of_bridge):([A-Za-zÀ-ÖØ-öø-ÿ0-9\s,\.()\-:]*)}/;
     const blockEnd = /^{(eoc|end_of_chorus|eop|end_of_part|eov|end_of_verse|eob|end_of_bridge)}\s*$/;
     const inline = /^{(inline):\s*(.*)}/i;
     const buffer = [];
-    let inSection = false, lastWasSubtitle = false, inCommentBlock = false, inInlineBlock = false;
+    let inSection = false, lastWasSubtitle = false, inCommentBlock = false, inInlineBlock = false, inBlock = false, inImplicitBlock = false;
     const lines = String(chordPro || '').replace(/-->/g, '→').replace(/\r\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '').split('\n');
     const closeComment = function () { if (inCommentBlock) { buffer.push('</div>'); inCommentBlock = false; } };
     const closeInline = function () { if (inInlineBlock) { buffer.push('</div>'); inInlineBlock = false; } };
+    // Versos escritos sem {sop}/{eop} passam a ser agrupados implicitamente num
+    // parágrafo, como se tivessem {sop:} e {eop} (equivalente a start_of_part).
+    const openImplicitBlock = function () {
+      if (!inImplicitBlock && !inBlock) {
+        buffer.push("<div class='block block-sop'><div class='sop resize'>");
+        inImplicitBlock = true;
+      }
+    };
+    const closeImplicitBlock = function () {
+      if (inImplicitBlock) { buffer.push('</div></div>'); inImplicitBlock = false; }
+    };
 
     lines.forEach(function (line) {
       let result;
       if ((result = simple.exec(line))) {
         const command = result[1], text = result[2], isComment = command === 'comment' || command === 'c';
+        closeImplicitBlock();
         if (!isComment) closeComment();
         closeInline();
         if (command === 'subtitle' || command === 'st') {
@@ -90,28 +105,42 @@
         if (isComment && !inCommentBlock) { buffer.push("<div class='comment-block'>"); inCommentBlock = true; }
         buffer.push("<div class='" + command + " resize'>" + text + '</div>');
       } else if ((result = inline.exec(line))) {
-        closeComment();
+        closeComment(); closeInline(); closeImplicitBlock();
         if (!inInlineBlock) { buffer.push("<div class='inline-block'>"); inInlineBlock = true; }
         const output = result[2].split(/\[([^\]]*)\]/).map(function (part, index) {
           return index % 2 ? applyAccidentals(transpose ? transposeChord(part, transpose) : part, accidentals) : part;
         }).join('');
         buffer.push("<div class='inline resize'>" + output + '</div>');
       } else if (normal.test(line)) {
-        closeComment(); closeInline(); buffer.push("<div class='textonly resize'>" + line + '</div>');
-      } else if (line.indexOf(']') >= 0) {
-        closeComment(); closeInline(); buffer.push(chordLine(line, transpose || 0, accidentals || 0));
-      } else if ((result = blockStart.exec(line))) {
-        closeComment(); closeInline(); buffer.push("<div class='block block-" + result[1] + "'><span class='BlkText resize'>" + result[2].trim() + "</span><div class='" + result[1] + " resize'>");
-      } else if (blockEnd.test(line)) {
-        closeComment(); closeInline(); buffer.push('</div></div>');
-      } else if (/^\s*$/.test(line)) {
         closeComment(); closeInline();
+        if (line.trim() === '') {
+          closeImplicitBlock();
+        } else {
+          openImplicitBlock();
+          buffer.push("<div class='textonly resize'>" + (hideChords ? line.replace(/^[ \t]+/, '') : line) + '</div>');
+        }
+      } else if (line.indexOf(']') >= 0) {
+        closeComment(); closeInline(); openImplicitBlock();
+        buffer.push(chordLine(line, transpose || 0, accidentals || 0, hideChords));
+      } else if ((result = blockStart.exec(line))) {
+        closeComment(); closeInline(); closeImplicitBlock(); inBlock = true;
+        buffer.push("<div class='block block-" + result[1] + "'><span class='BlkText resize'>" + result[2].trim() + "</span><div class='" + result[1] + " resize'>");
+      } else if (blockEnd.test(line)) {
+        closeComment(); closeInline();
+        if (inBlock) {
+          inBlock = false;
+          buffer.push('</div></div>');
+        } else {
+          closeImplicitBlock();
+        }
+      } else if (/^\s*$/.test(line)) {
+        closeComment(); closeInline(); closeImplicitBlock();
         if (lastWasSubtitle) { lastWasSubtitle = false; return; }
         if (inSection) { buffer.push('</div>'); inSection = false; }
         buffer.push("<div class='emptyline'></div>");
       } else lastWasSubtitle = false;
     });
-    closeComment(); closeInline(); if (inSection) buffer.push('</div>');
+    closeComment(); closeInline(); closeImplicitBlock(); if (inSection) buffer.push('</div>');
     return buffer.join('');
   };
 }());
