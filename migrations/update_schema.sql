@@ -9,6 +9,22 @@ BEGIN;
 -- Extensão para normalização de acentos (necessária para pesquisa sem acentos)
 CREATE EXTENSION IF NOT EXISTS unaccent;
 
+-- Tabela de definições de cifras por utilizador/música/dispositivo
+CREATE TABLE IF NOT EXISTS "UserChordSettings" (
+    "ID" SERIAL PRIMARY KEY,
+    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "songId" INTEGER NOT NULL REFERENCES songs("ID") ON DELETE CASCADE,
+    "deviceHash" VARCHAR(64),
+    "fontSize" REAL NOT NULL DEFAULT 16.0,
+    "columnCount" INTEGER NOT NULL DEFAULT 0,
+    "accidentals" INTEGER NOT NULL DEFAULT 0,
+    "transpose" INTEGER NOT NULL DEFAULT 0,
+    "hideChords" BOOLEAN NOT NULL DEFAULT FALSE,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE ("userId", "songId", "deviceHash")
+);
+
 -- Tabela de auditoria de logins/atividade dos utilizadores
 CREATE TABLE IF NOT EXISTS user_activity (
     id SERIAL PRIMARY KEY,

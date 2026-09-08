@@ -2526,9 +2526,16 @@ async fn search_songs_htmx(
         .get("q")
         .map(|s| s.trim().to_string())
         .unwrap_or_default();
+    let letter_param = params
+        .get("letter")
+        .map(|value| value.trim().to_string())
+        .unwrap_or_default();
+    let has_letter = letter_param.len() == 1;
+    let sort_value = params.get("sort").map(String::as_str).unwrap_or("all");
+    let has_sort = sort_value != "all";
 
-    // Se o campo de pesquisa está vazio, não mostrar resultados
-    if q_raw.is_empty() {
+    // Se o campo de pesquisa está vazio E não há letra selecionada E não há ordenação específica, não mostrar resultados
+    if q_raw.is_empty() && !has_letter && !has_sort {
         let tpl = SongsListTemplate {
             heading: "Resultados da Pesquisa".to_string(),
             songs: Vec::new(),
@@ -2540,20 +2547,26 @@ async fn search_songs_htmx(
     }
 
     let q = normalize_accents(&format!("%{}%", q_raw));
-    let letter = params
-        .get("letter")
-        .filter(|value| value.trim().len() == 1)
-        .map(|value| format!("{}%", value.trim()))
-        .unwrap_or_else(|| "%".to_string());
-    let filter = params.get("filter").map(String::as_str).unwrap_or("all");
-    let condition = match filter {
-        "org_name" => "unaccent(COALESCE(s.\"OrgName\", '')) ILIKE unaccent($1)",
-        "artistas" => "unaccent(COALESCE(s.\"Artistas\", '')) ILIKE unaccent($1)",
-        "composer" => "unaccent(COALESCE(s.\"Composer\", '')) ILIKE unaccent($1)",
-        "lyrics" => "unaccent(COALESCE(s.\"Lyrics\", '')) ILIKE unaccent($1)",
-        _ => "(unaccent(COALESCE(s.\"Name\", '')) ILIKE unaccent($1) OR unaccent(COALESCE(s.\"Artistas\", '')) ILIKE unaccent($1) OR unaccent(COALESCE(s.\"Code\", '')) ILIKE unaccent($1))",
+    let letter = if has_letter {
+        format!("{}%", letter_param)
+    } else {
+        "%".to_string()
     };
-    let sort_value = params.get("sort").map(String::as_str).unwrap_or("all");
+    let filter = params.get("filter").map(String::as_str).unwrap_or("all");
+
+    // Se uma letra foi selecionada, mostrar todas as músicas começadas por essa letra
+    // ignorando o filtro de pesquisa de texto
+    let condition = if has_letter {
+        "unaccent(COALESCE(s.\"Name\", '')) ILIKE unaccent($2)"
+    } else {
+        match filter {
+            "org_name" => "unaccent(COALESCE(s.\"OrgName\", '')) ILIKE unaccent($1)",
+            "artistas" => "unaccent(COALESCE(s.\"Artistas\", '')) ILIKE unaccent($1)",
+            "composer" => "unaccent(COALESCE(s.\"Composer\", '')) ILIKE unaccent($1)",
+            "lyrics" => "unaccent(COALESCE(s.\"Lyrics\", '')) ILIKE unaccent($1)",
+            _ => "(unaccent(COALESCE(s.\"Name\", '')) ILIKE unaccent($1) OR unaccent(COALESCE(s.\"Artistas\", '')) ILIKE unaccent($1) OR unaccent(COALESCE(s.\"Code\", '')) ILIKE unaccent($1))",
+        }
+    };
     let sort = match sort_value {
         "alpha" => "s.\"Name\" ASC NULLS LAST, s.\"ID\" DESC",
         "type" => "g.\"Desc\" ASC NULLS LAST, s.\"Name\" ASC NULLS LAST",
@@ -2598,7 +2611,15 @@ async fn search_songs_htmx(
     };
     let owner_id = user_id.unwrap_or(0);
     let fav_ids = favorite_song_ids(&pool, user_id).await;
-    let sql = format!("SELECT s.\"ID\", s.\"Code\", s.\"Name\", s.\"OrgName\", s.\"Composer\", s.\"ChordPro\", s.\"Lyrics\", s.\"Themes\", s.\"Youtube\", s.\"GenreType\", s.\"Artistas\", s.\"OrgKey\", s.\"OrgTempo\", s.\"Copyright\", s.\"Favorite\", s.\"IdInsertUser\", s.\"IdUpdateUser\", s.\"ViewCount\", s.\"createdAt\", s.\"updatedAt\", s.\"Status\" FROM songs s{genre_join}{fav_join} WHERE {condition} AND COALESCE(s.\"Name\", '') ILIKE $2{genre_cond} AND (s.\"Status\" = 'approved' OR s.\"IdInsertUser\" = {owner_id} OR {is_moderator}) ORDER BY {sort} LIMIT 100");
+    // Quando uma letra é selecionada, a condição já filtra por letra (usando $2)
+    // e não precisamos de filtrar adicionalmente por nome
+    let letter_filter = if has_letter {
+        String::new()
+    } else {
+        " AND COALESCE(s.\"Name\", '') ILIKE $2".to_string()
+    };
+
+    let sql = format!("SELECT s.\"ID\", s.\"Code\", s.\"Name\", s.\"OrgName\", s.\"Composer\", s.\"ChordPro\", s.\"Lyrics\", s.\"Themes\", s.\"Youtube\", s.\"GenreType\", s.\"Artistas\", s.\"OrgKey\", s.\"OrgTempo\", s.\"Copyright\", s.\"Favorite\", s.\"IdInsertUser\", s.\"IdUpdateUser\", s.\"ViewCount\", s.\"createdAt\", s.\"updatedAt\", s.\"Status\" FROM songs s{genre_join}{fav_join} WHERE {condition}{letter_filter}{genre_cond} AND (s.\"Status\" = 'approved' OR s.\"IdInsertUser\" = {owner_id} OR {is_moderator}) ORDER BY {sort} LIMIT 100");
 
     let rows = sqlx::query_as::<_, Song>(&sql)
         .bind(q)
@@ -4474,6 +4495,14 @@ async fn save_chord_settings(
     jar: CookieJar,
     Json(settings): Json<ChordSettingsInput>,
 ) -> impl IntoResponse {
+    tracing::debug!(
+        font_size = settings.font_size,
+        column_count = settings.column_count,
+        accidentals = settings.accidentals,
+        transpose = settings.transpose,
+        hide_chords = settings.hide_chords,
+        "received chord settings save request"
+    );
     let Some(user_id) = authenticated_user_id(&jar) else {
         return (
             StatusCode::UNAUTHORIZED,
@@ -4481,19 +4510,14 @@ async fn save_chord_settings(
         )
             .into_response();
     };
-    if !(8.0..=32.0).contains(&settings.font_size)
-        || !(0..=4).contains(&settings.column_count)
-        || ![-1, 0, 1].contains(&settings.accidentals)
-        || !(-11..=11).contains(&settings.transpose)
-    {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "Preferências inválidas"})),
-        )
-            .into_response();
-    }
+        // Sanitize values to ensure they are within valid ranges
+    let font_size = if settings.font_size.is_nan() { 16.0 } else { settings.font_size.clamp(8.0, 32.0) };
+    let column_count = settings.column_count.clamp(0, 4);
+    let accidentals = settings.accidentals.clamp(-1, 1);
+    let transpose = settings.transpose.clamp(-12, 12);
+    let hide_chords = settings.hide_chords;
     let result = sqlx::query("INSERT INTO \"UserChordSettings\" (\"userId\", \"songId\", \"deviceHash\", \"fontSize\", \"columnCount\", \"accidentals\", \"transpose\", \"hideChords\", \"updatedAt\") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) ON CONFLICT (\"userId\", \"songId\", \"deviceHash\") DO UPDATE SET \"fontSize\" = EXCLUDED.\"fontSize\", \"columnCount\" = EXCLUDED.\"columnCount\", \"accidentals\" = EXCLUDED.\"accidentals\", \"transpose\" = EXCLUDED.\"transpose\", \"hideChords\" = EXCLUDED.\"hideChords\", \"updatedAt\" = NOW()")
-        .bind(user_id).bind(song_id).bind(device_hash(&headers)).bind(settings.font_size).bind(settings.column_count).bind(settings.accidentals).bind(settings.transpose).bind(settings.hide_chords)
+        .bind(user_id).bind(song_id).bind(device_hash(&headers)).bind(font_size).bind(column_count).bind(accidentals).bind(transpose).bind(hide_chords)
         .execute(&pool)
         .await;
     match result {
@@ -4576,6 +4600,28 @@ async fn main() {
     let _ = sqlx::query(
         r#"
         ALTER TABLE songs ADD COLUMN IF NOT EXISTS "Status" VARCHAR(20) NOT NULL DEFAULT 'approved'
+        "#,
+    )
+    .execute(&pool)
+    .await;
+
+        // Create UserChordSettings table if it doesn't exist
+    let _ = sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS "UserChordSettings" (
+            "ID" SERIAL PRIMARY KEY,
+            "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            "songId" INTEGER NOT NULL REFERENCES songs("ID") ON DELETE CASCADE,
+            "deviceHash" VARCHAR(64),
+            "fontSize" REAL NOT NULL DEFAULT 16.0,
+            "columnCount" INTEGER NOT NULL DEFAULT 0,
+            "accidentals" INTEGER NOT NULL DEFAULT 0,
+            "transpose" INTEGER NOT NULL DEFAULT 0,
+            "hideChords" BOOLEAN NOT NULL DEFAULT FALSE,
+            "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE ("userId", "songId", "deviceHash")
+        )
         "#,
     )
     .execute(&pool)

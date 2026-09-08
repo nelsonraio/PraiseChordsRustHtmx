@@ -25,4 +25,5 @@
   <div id="rendtarg" class="chord-container overflow-auto bg-white {% if song.is_pending %}ring-4 ring-inset ring-yellow-500/70{% endif %}" :class="{ 'hide-chords': hideChords }" style="height: 100%;" :style="contentStyle()" x-html="renderedChordPro"></div>
   <pre x-ref="chordRaw" class="hidden">{{ song.chord_pro }}</pre><span x-ref="youtubeUrl" class="hidden">{{ song.youtube }}</span>
   {% if !is_public %}<div hx-post="/api/songs/{{ song.id }}/view" hx-trigger="revealed" hx-swap="none"></div>{% endif %}
+  <div :class="transposeSteps === 0 ? 'hidden' : 'flex fixed z-50 items-center gap-1 rounded-full bg-gray-800 px-3 text-xs font-semibold shadow-lg border border-blue-400'" :style="'bottom:1rem; right:1rem; padding-top:0.25rem; padding-bottom:0.25rem; color:' + (transposeSteps > 0 ? '#60a5fa' : '#f97316')" title="Transposición aplicada (meios tons)"><i class="fas fa-music text-xs"></i><span x-text="(transposeSteps > 0 ? '+' : '') + transposeSteps"></span></div>
 </div>
