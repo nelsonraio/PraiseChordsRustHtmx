@@ -2426,6 +2426,34 @@ async fn pending_page(Extension(pool): Extension<PgPool>, jar: CookieJar) -> imp
         .into_response()
 }
 
+/// Normaliza acentos e cedilhas para permitir pesquisar sem os mesmos.
+/// Ex: "coração" -> "coracao", "José" -> "Jose", "ação" -> "acao"
+fn normalize_accents(input: &str) -> String
+{
+    input
+        .chars()
+        .map(|c| match c {
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' => 'a',
+            'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => 'A',
+            'è' | 'é' | 'ê' | 'ë' => 'e',
+            'È' | 'É' | 'Ê' | 'Ë' => 'E',
+            'ì' | 'í' | 'î' | 'ï' => 'i',
+            'Ì' | 'Í' | 'Î' | 'Ï' => 'I',
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' => 'o',
+            'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ø' => 'O',
+            'ù' | 'ú' | 'û' | 'ü' => 'u',
+            'Ù' | 'Ú' | 'Û' | 'Ü' => 'U',
+            'ñ' => 'n',
+            'Ñ' => 'N',
+            'ç' => 'c',
+            'Ç' => 'C',
+            'ý' | 'ÿ' => 'y',
+            'Ý' | 'Ÿ' => 'Y',
+            _ => c,
+        })
+        .collect()
+}
+
 async fn search_songs(
     Extension(pool): Extension<PgPool>,
     Query(params): Query<HashMap<String, String>>,
@@ -2494,30 +2522,45 @@ async fn search_songs_htmx(
         .into_response();
     }
 
-    let q = params
+    let q_raw = params
         .get("q")
-        .map(|s| format!("%{}%", s))
-        .unwrap_or_else(|| "%".to_string());
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+
+    // Se o campo de pesquisa está vazio, não mostrar resultados
+    if q_raw.is_empty() {
+        let tpl = SongsListTemplate {
+            heading: "Resultados da Pesquisa".to_string(),
+            songs: Vec::new(),
+        };
+        let rendered = tpl
+            .render()
+            .unwrap_or_else(|e| format!("Erro ao renderizar template: {}", e));
+        return Html(rendered).into_response();
+    }
+
+    let q = normalize_accents(&format!("%{}%", q_raw));
     let letter = params
         .get("letter")
-        .filter(|value| value.len() == 1)
-        .map(|value| format!("{}%", value))
+        .filter(|value| value.trim().len() == 1)
+        .map(|value| format!("{}%", value.trim()))
         .unwrap_or_else(|| "%".to_string());
     let filter = params.get("filter").map(String::as_str).unwrap_or("all");
     let condition = match filter {
-        "org_name" => "COALESCE(s.\"OrgName\", '') ILIKE $1",
-        "artistas" => "COALESCE(s.\"Artistas\", '') ILIKE $1",
-        "composer" => "COALESCE(s.\"Composer\", '') ILIKE $1",
-        "lyrics" => "COALESCE(s.\"Lyrics\", '') ILIKE $1",
-        _ => "(COALESCE(s.\"Name\", '') ILIKE $1 OR COALESCE(s.\"Artistas\", '') ILIKE $1 OR COALESCE(s.\"Code\", '') ILIKE $1)",
+        "org_name" => "unaccent(COALESCE(s.\"OrgName\", '')) ILIKE unaccent($1)",
+        "artistas" => "unaccent(COALESCE(s.\"Artistas\", '')) ILIKE unaccent($1)",
+        "composer" => "unaccent(COALESCE(s.\"Composer\", '')) ILIKE unaccent($1)",
+        "lyrics" => "unaccent(COALESCE(s.\"Lyrics\", '')) ILIKE unaccent($1)",
+        _ => "(unaccent(COALESCE(s.\"Name\", '')) ILIKE unaccent($1) OR unaccent(COALESCE(s.\"Artistas\", '')) ILIKE unaccent($1) OR unaccent(COALESCE(s.\"Code\", '')) ILIKE unaccent($1))",
     };
-    let sort_value = params.get("sort").map(String::as_str).unwrap_or("recent");
+    let sort_value = params.get("sort").map(String::as_str).unwrap_or("all");
     let sort = match sort_value {
         "alpha" => "s.\"Name\" ASC NULLS LAST, s.\"ID\" DESC",
         "type" => "g.\"Desc\" ASC NULLS LAST, s.\"Name\" ASC NULLS LAST",
         "tempo" => "s.\"OrgTempo\" ASC NULLS LAST, s.\"Name\" ASC NULLS LAST",
         "views" => "s.\"ViewCount\" DESC NULLS LAST, s.\"ID\" DESC",
-        _ => "s.\"createdAt\" DESC NULLS LAST, s.\"ID\" DESC",
+        "recent" => "s.\"createdAt\" DESC NULLS LAST, s.\"ID\" DESC",
+        _ => "s.\"ID\" DESC", // "all" - sem ordenação específica, por ID
     };
     // Filtro por tipo de música (coluna "GenreType" é o ID da tabela genretypes)
     let genre_filter = params
@@ -4496,6 +4539,15 @@ async fn main() {
 
     // centralised DB connect (loads .env from parent if needed)
     let pool = db::connect().await;
+
+    // Create unaccent extension for accent-insensitive search
+    let _ = sqlx::query(
+        r#"
+        CREATE EXTENSION IF NOT EXISTS unaccent
+        "#,
+    )
+    .execute(&pool)
+    .await;
 
     // Auto-create user_activity table if it doesn't exist
     let _ = sqlx::query(

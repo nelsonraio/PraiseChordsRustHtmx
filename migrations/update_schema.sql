@@ -6,6 +6,9 @@
 
 BEGIN;
 
+-- Extensão para normalização de acentos (necessária para pesquisa sem acentos)
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
 -- Tabela de auditoria de logins/atividade dos utilizadores
 CREATE TABLE IF NOT EXISTS user_activity (
     id SERIAL PRIMARY KEY,
