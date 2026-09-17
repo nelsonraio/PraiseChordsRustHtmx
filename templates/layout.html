@@ -171,8 +171,8 @@
       }));
     });
   </script>
-  <link rel="stylesheet" href="/static/chordpro.css?v=3">
-  <script src="/static/chord-parser.js"></script>
+  <link rel="stylesheet" href="/static/chordpro.css?v=7">
+  <script src="/static/chord-parser.js?v=transpose-3"></script>
   <script src="/static/alpine.min.js?v=3.14.9"></script>
   <div id="modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-70 p-2" style="overflow-y: auto;">
     <div id="modal-content" class="bg-gray-800 rounded-xl max-w-3xl w-full shadow-2xl border border-gray-700" style="max-height: calc(100vh - 2rem); overflow-y: auto;"></div>
@@ -200,7 +200,77 @@
           return '';
         }
       },
+      splitLinks(value) {
+        return String(value || '').split(/\r?\n/).map(link => link.trim()).filter(Boolean);
+      },
+      videos(value) {
+        return this.splitLinks(value)
+          .map(link => ({ link, videoId: this.extractVideoId(link) }))
+          .filter(video => video.videoId);
+      },
+      embedUrl(videoId) {
+        return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+      },
+      watchUrl(videoId) {
+        return `https://www.youtube.com/watch?v=${videoId}`;
+      },
       play(url) {
+        const links = this.splitLinks(url);
+        if (!links.length) return;
+        this.close();
+        if (links.length === 1) {
+          this.openLink(links[0]);
+          return;
+        }
+        // Um dialog separado não substitui a cifra ou a setlist aberta no modal HTMX.
+        const dialog = document.createElement('dialog');
+        dialog.className = 'rounded-xl border border-gray-600 bg-gray-800 p-6 text-white shadow-2xl';
+        dialog.style.cssText = 'width: min(32rem, calc(100vw - 2rem)); max-height: 80vh; overflow-y: auto;';
+        dialog.setAttribute('aria-labelledby', 'youtube-choice-title');
+        const heading = document.createElement('h2');
+        heading.id = 'youtube-choice-title';
+        heading.className = 'mb-4 text-xl font-bold';
+        heading.textContent = 'Escolher versão do YouTube';
+        dialog.appendChild(heading);
+        links.forEach((link, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'mb-2 block w-full rounded bg-gray-700 px-4 py-2 text-left hover:bg-gray-600';
+          const label = document.createElement('span');
+          label.className = 'block font-semibold';
+          label.textContent = index === 0 ? 'Original (principal)' : `Versão alternativa ${index}`;
+          const address = document.createElement('span');
+          address.className = 'block text-xs text-gray-300';
+          address.style.overflowWrap = 'anywhere';
+          address.textContent = link;
+          button.append(label, address);
+          button.addEventListener('click', () => {
+            this.openLink(link);
+            this.close();
+          });
+          dialog.appendChild(button);
+        });
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'mt-2 rounded bg-gray-700 px-4 py-2 hover:bg-gray-600';
+        cancel.textContent = 'Cancelar';
+        cancel.addEventListener('click', () => this.close());
+        dialog.appendChild(cancel);
+        dialog.addEventListener('cancel', event => {
+          event.preventDefault();
+          this.close();
+        });
+        dialog.addEventListener('click', event => {
+          if (event.target !== dialog) return;
+          const bounds = dialog.getBoundingClientRect();
+          if (event.clientX < bounds.left || event.clientX > bounds.right ||
+              event.clientY < bounds.top || event.clientY > bounds.bottom) this.close();
+        });
+        this.choiceDialog = dialog;
+        document.body.appendChild(dialog);
+        dialog.showModal();
+      },
+      openLink(url) {
         let value = String(url || '').trim();
         if (!value) return;
         // Extrai o ID primeiro — na base de dados o campo pode guardar apenas o
@@ -219,7 +289,13 @@
         if (!/^https?:\/\//i.test(value)) value = 'https://' + value;
         window.open(value, '_blank', 'noopener,noreferrer');
       },
-      close() {}
+      close() {
+        if (this.choiceDialog) {
+          this.choiceDialog.close();
+          this.choiceDialog.remove();
+          this.choiceDialog = null;
+        }
+      }
     };
 
     document.body.addEventListener('htmx:beforeSwap', (event) => {
@@ -283,6 +359,39 @@
       if (target) htmx.ajax('GET', '/htmx/setlists', { target: '#setlists-content', swap: 'innerHTML' });
     }
 
+    // Atualiza a grelha de resultados de músicas após uma gravação.
+    // - Página de pesquisa (Dashboard): atualiza #songs-list in‑place,
+    //   preservando os filtros activos (ordem, letra, tipo, favoritos…).
+    // - Páginas "biblioteca" (Most-viewed, Favoritas, Recentes, Pendentes),
+    //   cujo conteúdo é renderizado no servidor sem target htmx,
+    //   recarrega a página para refrescar os cartões.
+    function refreshSongsList() {
+      const songsList = document.getElementById('songs-list');
+      if (!songsList) {
+        // Não há grelha de resultados nesta página; nada a actualizar.
+        return;
+      }
+      if (!songsList.querySelector('li')) {
+        // Lista vazia (ex.: pesquisa sem resultados). Nada a actualizar.
+        return;
+      }
+      const form = document.getElementById('search-controls');
+      if (form && window.htmx) {
+        // Recorre aos filtros actuais em vez de carregar a lista por defeito.
+        htmx.trigger(form, 'submit');
+      } else if (window.htmx) {
+        htmx.ajax('GET', '/htmx/songs', { target: '#songs-list', swap: 'innerHTML' });
+      }
+    }
+
+    function refreshLibraryPage() {
+      // As páginas de biblioteca não têm um container htmx; recarregar
+      // traz os cartões actualizados (tom/tempo, favoritos, etc.).
+      if (!document.getElementById('songs-list') && window.location.pathname.match(/^\/(most-viewed|favorites|recent|pending)(\/|$)/)) {
+        window.location.reload();
+      }
+    }
+
     document.body.addEventListener('song-added-to-setlist', () => {
       closeModal();
       refreshSetlists();
@@ -295,12 +404,14 @@
 
     document.body.addEventListener('song-updated', () => {
       closeModal();
+      refreshSongsList();
+      refreshLibraryPage();
     });
 
     document.body.addEventListener('song-created', () => {
       closeModal();
-      const target = document.getElementById('songs-list');
-      if (target && target.querySelector('li')) htmx.ajax('GET', '/htmx/songs', { target: '#songs-list', swap: 'innerHTML' });
+      refreshSongsList();
+      refreshLibraryPage();
     });
 
     document.body.addEventListener('htmx:afterRequest', (event) => {

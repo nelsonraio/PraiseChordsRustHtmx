@@ -4,9 +4,90 @@
   preview: '',
   viewMode: 'preview',
   convertTimer: null,
+  keyMessage: '',
+  tapTimes: [],
+  tapMessage: '',
+  youtubePlaying: false,
+  youtubeEmbedUrl: '',
+  youtubeWatchUrl: '',
+  youtubeVersions: [],
+  youtubeVersionIndex: 0,
+  youtubeMessage: '',
+  tapBpm() {
+    const now = performance.now();
+    const last = this.tapTimes[this.tapTimes.length - 1];
+    // Ignora cliques duplicados e reinicia após uma pausa.
+    if (last !== undefined && now - last < 150) return;
+    if (last !== undefined && now - last > 4000) this.tapTimes = [];
+    this.tapTimes.push(now);
+    this.tapTimes = this.tapTimes.slice(-8);
+    if (this.tapTimes.length < 2) {
+      this.tapMessage = 'Continue a tocar no ritmo da música.';
+      return;
+    }
+    const interval = (now - this.tapTimes[0]) / (this.tapTimes.length - 1);
+    const bpm = Math.round(60000 / interval);
+    this.$refs.orgTempo.value = bpm;
+    this.tapMessage = 'Tempo estimado: ' + bpm + ' BPM. Pode corrigir manualmente antes de guardar.';
+  },
+  toggleYoutubePlayback() {
+    if (this.youtubePlaying) {
+      // Remove o leitor do DOM (template x-if), o que interrompe o áudio.
+      this.youtubePlaying = false;
+      this.youtubeEmbedUrl = '';
+      this.youtubeWatchUrl = '';
+      this.youtubeMessage = 'Reprodução parada.';
+      return;
+    }
+    const api = window.praiseChordsYoutube;
+    const field = this.$refs.youtubeLinks;
+    const videos = api && field ? api.videos(field.value) : [];
+    if (!videos.length) {
+      this.youtubeVersions = [];
+      this.youtubeMessage = 'Sem link de vídeo do YouTube válido no campo. Adicione um link para poder tocar.';
+      return;
+    }
+    this.youtubeVersions = videos;
+    if (this.youtubeVersionIndex >= videos.length) this.youtubeVersionIndex = 0;
+    this.startYoutubeVersion(this.youtubeVersionIndex);
+  },
+  startYoutubeVersion(index) {
+    const api = window.praiseChordsYoutube;
+    const video = this.youtubeVersions[index];
+    if (!api || !video) return;
+    this.youtubeVersionIndex = index;
+    this.youtubeEmbedUrl = api.embedUrl(video.videoId);
+    this.youtubeWatchUrl = api.watchUrl(video.videoId);
+    this.youtubePlaying = true;
+    this.youtubeMessage = 'A tocar: ' + (index === 0 ? 'Original (principal)' : 'Versão alternativa ' + index) + '.';
+  },
+  changeYoutubeVersion() {
+    if (!this.youtubePlaying) return;
+    this.startYoutubeVersion(this.youtubeVersionIndex);
+  },
+  detectKey() {
+    if (!window.DetectKey) {
+      this.keyMessage = 'Não foi possível carregar a deteção de tom. Recarregue a página.';
+      return;
+    }
+    if (this.convertTimer !== null) {
+      clearTimeout(this.convertTimer);
+      this.convertTimer = null;
+      this.chordPro = window.cifraToChordPro ? window.cifraToChordPro(this.cifraOriginal) : this.cifraOriginal;
+      this.renderPreview();
+    }
+    const key = window.DetectKey(this.chordPro);
+    if (key === 'N/A') {
+      this.keyMessage = 'Não foi possível detetar o tom. Insira uma cifra com acordes.';
+      return;
+    }
+    this.$refs.orgKey.value = key;
+    this.keyMessage = 'Tom provável: ' + key + '. Pode corrigir manualmente antes de guardar.';
+  },
   convert() {
     clearTimeout(this.convertTimer);
     this.convertTimer = setTimeout(() => {
+      this.convertTimer = null;
       if (window.cifraToChordPro) {
         this.chordPro = window.cifraToChordPro(this.cifraOriginal);
       } else {
@@ -16,12 +97,28 @@
     }, 300);
   },
   renderPreview() {
-    this.preview = window.parseChordPro2 ? window.parseChordPro2(this.chordPro, 0, 1) : '';
+    // Sem conversão forçada de acidentes: a pré-visualização mostra exatamente
+    // a grafia guardada no ChordPro (o botão # ⇄ b altera o texto guardado).
+    this.preview = window.parseChordPro2 ? window.parseChordPro2(this.chordPro, 0, 0) : '';
   },
   toggleView() { this.viewMode = this.viewMode === 'preview' ? 'chordpro' : 'preview'; },
   alignChords() {
     if (!window.alignChordsToSyllables) return;
     this.chordPro = window.alignChordsToSyllables(this.chordPro);
+    this.renderPreview();
+  },
+  transposeChords(steps) {
+    if (!window.transposeChordPro) return;
+    this.chordPro = window.transposeChordPro(this.chordPro, steps);
+    this.renderPreview();
+  },
+  toggleAccidentals() {
+    if (!window.applyAccidentalsChordPro) return;
+    // Converte apenas o que está dentro dos acordes [X], não a letra.
+    const chords = (this.chordPro.match(/\[[^\][\r\n]*\]/g) || []).join(' ');
+    const flats = (chords.match(/[A-G]b/g) || []).length;
+    const sharps = (chords.match(/[A-G]#/g) || []).length;
+    this.chordPro = window.applyAccidentalsChordPro(this.chordPro, flats > sharps ? 1 : -1);
     this.renderPreview();
   },
   insertTag(type) {
@@ -130,7 +227,7 @@
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Nome da Música<input name="name" value="{{ song.name }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Nome da música" /></label><label class="block text-sm font-medium text-gray-300">Nome Original<input name="org_name" value="{{ song.org_name }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Nome original" /></label></div>
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Compositor<input name="composer" value="{{ song.composer }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" /></label><label class="block text-sm font-medium text-gray-300">Artistas<input name="artistas" value="{{ song.artistas }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" /></label></div>
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Código<input id="code-field" name="code" type="text" value="{{ song.code }}" readonly class="mt-2 w-full rounded border border-gray-600 bg-gray-700 px-4 py-2 text-gray-300 cursor-not-allowed" placeholder="Selecione um género para gerar código automático" /><span class="text-xs text-gray-500">Gerado automaticamente com base no género</span></label><label class="block text-sm font-medium text-gray-300">Género<select id="genre-type-select" name="genre_type" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black"><option value="">Selecionar género</option>{% for genre in genres %}<option value="{{ genre.id }}"{% if genre.selected %} selected{% endif %}>{{ genre.name }}</option>{% endfor %}</select></label></div>
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Tom Original<input name="org_key" value="{{ song.org_key }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Ex: C, D, Em" /></label><label class="block text-sm font-medium text-gray-300">Tempo<input name="org_tempo" type="number" value="{{ song.org_tempo }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="BPM" /></label></div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><div><label class="block text-sm font-medium text-gray-300">Tom Original<input x-ref="orgKey" name="org_key" value="{{ song.org_key }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Ex: C, D, Em" /></label><button type="button" @click="detectKey()" class="mt-2 rounded bg-blue-600 px-3 py-1 text-sm font-semibold text-white hover:bg-blue-700" title="Estimar o tom a partir dos acordes da cifra">Detetar tom</button><p role="status" aria-live="polite" class="mt-1 text-xs text-gray-400" x-text="keyMessage"></p></div><div><label class="block text-sm font-medium text-gray-300">Tempo<input x-ref="orgTempo" name="org_tempo" type="number" value="{{ song.org_tempo }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="BPM" /></label><button type="button" @click="tapBpm()" class="mt-2 rounded bg-blue-600 px-3 py-1 text-sm font-semibold text-white hover:bg-blue-700" title="Toque ao ritmo da música para calcular o BPM">Tap BPM</button><p class="mt-1 text-xs text-gray-400">Toque várias vezes ao ritmo. Após 4 segundos de pausa, a medição recomeça.</p><p role="status" aria-live="polite" class="mt-1 text-xs text-gray-400" x-text="tapMessage"></p></div></div>
   <script>
     (function() {
       var genrePrefixes = {};
@@ -156,7 +253,7 @@
       }
     })();
   </script>
-    <label class="block text-sm font-medium text-gray-300">Link do YouTube<input name="youtube" value="{{ song.youtube }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="ID ou link do vídeo do YouTube" /></label>
+    <div><label class="block text-sm font-medium text-gray-300">Links do YouTube<textarea x-ref="youtubeLinks" name="youtube" rows="3" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" placeholder="Um ID ou link do YouTube por linha">{{ song.youtube }}</textarea><span class="mt-1 block text-xs text-gray-400">Um link por linha. O primeiro é a versão original; os seguintes são versões alternativas (por exemplo, noutras línguas).</span></label><div class="mt-2 flex flex-wrap items-center gap-2"><button type="button" @click="toggleYoutubePlayback()" :class="youtubePlaying ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'" class="rounded px-3 py-1 text-sm font-semibold text-white" title="Ouvir a música enquanto edita a cifra" x-text="youtubePlaying ? '■ Parar' : '▶ Tocar'"></button><select x-show="youtubeVersions.length > 1" x-model.number="youtubeVersionIndex" @change="changeYoutubeVersion()" class="rounded border border-gray-600 bg-white px-2 py-1 text-sm text-black" title="Escolher a versão a ouvir"><template x-for="(version, index) in youtubeVersions" :key="index"><option :value="index" x-text="index === 0 ? 'Original (principal)' : 'Versão alternativa ' + index"></option></template></select></div><template x-if="youtubePlaying"><div class="mt-2"><iframe :src="youtubeEmbedUrl" class="w-full rounded border border-gray-600" height="200" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><a :href="youtubeWatchUrl" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-xs text-blue-400 hover:text-blue-300">Abrir no YouTube</a></div></template><p role="status" aria-live="polite" class="mt-1 text-xs text-gray-400" x-text="youtubeMessage"></p></div>
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2"><label class="block text-sm font-medium text-gray-300">Copyright<input name="copyright" value="{{ song.copyright }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" /></label><label class="block text-sm font-medium text-gray-300">Temas<input name="themes" value="{{ song.themes }}" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 text-black" /></label></div>
     <label class="block text-sm font-medium text-gray-300">Cifra Original<textarea x-model="cifraOriginal" @input="convert()" rows="10" style="text-align: left;" class="mt-2 w-full rounded border border-gray-600 bg-white px-4 py-2 font-mono text-sm text-black text-left" placeholder="Cole aqui a cifra original (ex.: formato CifraClub) para converter para ChordPro..."></textarea><span class="mt-1 block text-xs text-gray-400">Ao colar, a cifra é convertida automaticamente para o formato ChordPro (que fica editável e é o que será gravado).</span></label>
     <section class="rounded-lg border border-gray-600 bg-white p-1">
@@ -173,6 +270,9 @@
           <button type="button" @click="insertTag('st')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="Subtítulo">{st: }</button>
           <button type="button" @click="insertTag('c')" class="rounded bg-gray-200 px-2 py-1 text-xs font-mono text-gray-700 hover:bg-gray-300" title="Comentário">{c: }</button>
           <button type="button" @click="alignChords()" class="rounded bg-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-300" title="Realinhar acordes para o início das sílabas">🎵 Alinhar Acordes</button>
+          <button type="button" @click="transposeChords(1)" class="rounded bg-blue-500 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-700" title="Subir todos os acordes meio tom">▲ +1</button>
+          <button type="button" @click="transposeChords(-1)" class="rounded bg-blue-500 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-700" title="Baixar todos os acordes meio tom">▼ −1</button>
+          <button type="button" @click="toggleAccidentals()" class="rounded bg-blue-500 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-700" title="Alternar a grafia dos acordes entre sustenidos (#) e bemóis (b)"># ⇄ b</button>
         </div>
         <textarea x-ref="chordPro" x-model="chordPro" @input="renderPreview()" name="chord_pro" rows="12" style="text-align: left;" class="w-full rounded border border-gray-300 bg-white px-4 py-2 font-mono text-sm text-black text-left" placeholder="[Acorde]letra ...">{{ song.chord_pro }}</textarea>
         <p class="mt-1 px-1 text-xs text-gray-500">Pce corrigir aqui qualquer pormenor do ChordPro convertido.</p>

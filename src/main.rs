@@ -109,6 +109,7 @@ struct SongListItem {
     composer: String,
     artistas: String,
     org_key: String,
+    org_tempo: Option<i32>,
     youtube: Option<String>,
     favorite: bool,
     view_count: i64,
@@ -561,6 +562,7 @@ mod template_tests {
             composer: String::new(),
             artistas: String::new(),
             org_key: String::new(),
+            org_tempo: None,
             youtube: None,
             favorite: false,
             view_count: 0,
@@ -589,6 +591,7 @@ mod template_tests {
             composer: String::new(),
             artistas: String::new(),
             org_key: String::new(),
+            org_tempo: None,
             youtube: None,
             favorite: false,
             view_count: 0,
@@ -603,6 +606,46 @@ mod template_tests {
         let html = tpl.render().expect("render falhou");
         assert!(html.contains("Inserido por Ana"));
         assert!(!html.contains("Corrigido por"), "não deve mostrar 'Corrigido por' quando é o mesmo utilizador:\n{html}");
+    }
+
+    #[test]
+    fn songs_list_shows_key_and_tempo_outside_action_buttons() {
+        let song = SongListItem {
+            id: 1,
+            code: "W0001".into(),
+            name: "Teste".into(),
+            org_name: String::new(),
+            composer: String::new(),
+            artistas: String::new(),
+            org_key: "C".into(),
+            org_tempo: Some(120),
+            youtube: None,
+            favorite: false,
+            view_count: 0,
+            inserted_by: String::new(),
+            updated_by: String::new(),
+            can_edit: true,
+            is_pending: false,
+            can_delete: false,
+            can_approve: false,
+        };
+        let tpl = SongsListTemplate { heading: "Resultados da Pesquisa".to_string(), songs: vec![song] };
+        let html = tpl.render().expect("render falhou");
+
+        assert!(html.contains("Tom: C"), "o tom deve aparecer no cartão:\n{html}");
+        assert!(html.contains("120 BPM"), "o tempo deve aparecer no cartão:\n{html}");
+
+        // O tom e o tempo ficam fora da fila de botões, para não a sobrecarregar.
+        let actions_start = html
+            .find("flex items-center gap-1 bg-gray-800/60")
+            .expect("fila de botões não encontrada");
+        let actions_end = html[actions_start..]
+            .find("bg-blue-600 text-white")
+            .map(|offset| actions_start + offset)
+            .expect("fim da fila de botões não encontrado");
+        let actions = &html[actions_start..actions_end];
+        assert!(!actions.contains("Tom:"), "o tom não deve estar na fila de botões:\n{actions}");
+        assert!(!actions.contains("BPM"), "o tempo não deve estar na fila de botões:\n{actions}");
     }
 }
 fn normalize_newlines(value: String) -> String {
@@ -625,9 +668,21 @@ fn valid_profile(profile: i32) -> bool {
     (1..=4).contains(&profile)
 }
 
+/// Normaliza cada link separadamente, mantendo a ordem (original primeiro).
+/// O campo existente guarda um link/ID por linha, incluindo valores antigos únicos.
+fn normalize_youtube(value: String) -> String {
+    value
+        .lines()
+        .map(str::trim)
+        .filter(|link| !link.is_empty())
+        .map(|link| normalize_youtube_link(link.to_string()))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Extrai o ID de 11 caracteres de um link do YouTube, ou devolve o valor
 /// original se não for possível identificar um ID válido.
-fn normalize_youtube(value: String) -> String {
+fn normalize_youtube_link(value: String) -> String {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         return String::new();
@@ -678,6 +733,35 @@ fn normalize_youtube(value: String) -> String {
             id
         }
         _ => value,
+    }
+}
+
+#[cfg(test)]
+mod youtube_tests {
+    use super::normalize_youtube;
+
+    #[test]
+    fn normalizes_multiple_links_in_order_and_ignores_blank_lines() {
+        let input = " https://youtu.be/dQw4w9WgXcQ?si=test\r\n\r\n https://www.youtube.com/watch?v=abcdefghijk&list=test \nhttps://youtube.com/shorts/12345678901\n";
+        let result = normalize_youtube(input.to_string());
+        assert_eq!(result, "dQw4w9WgXcQ\nabcdefghijk\n12345678901");
+        assert_eq!(normalize_youtube(result.clone()), result);
+    }
+
+    #[test]
+    fn preserves_single_links_ids_and_playlists() {
+        for input in [
+            "dQw4w9WgXcQ",
+            "https://youtu.be/dQw4w9WgXcQ",
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "youtube.com/embed/dQw4w9WgXcQ",
+            "https://youtube.com/live/dQw4w9WgXcQ",
+        ] {
+            assert_eq!(normalize_youtube(input.to_string()), "dQw4w9WgXcQ");
+        }
+        let playlist = "https://www.youtube.com/playlist?list=PLtest";
+        assert_eq!(normalize_youtube(playlist.to_string()), playlist);
+        assert_eq!(normalize_youtube(" \r\n \n".to_string()), "");
     }
 }
 
@@ -2197,6 +2281,7 @@ async fn list_songs_htmx(Extension(pool): Extension<PgPool>, jar: CookieJar) -> 
             composer: s.composer.unwrap_or_default(),
             artistas: s.artistas.unwrap_or_default(),
             org_key: s.org_key.unwrap_or_default(),
+            org_tempo: s.org_tempo,
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: fav_ids.contains(&s.id),
             view_count: s.view_count.unwrap_or(0) as i64,
@@ -2247,6 +2332,7 @@ async fn list_songs_json(Extension(pool): Extension<PgPool>, jar: CookieJar) -> 
             composer: s.composer.unwrap_or_default(),
             artistas: s.artistas.unwrap_or_default(),
             org_key: s.org_key.unwrap_or_default(),
+            org_tempo: s.org_tempo,
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: fav_ids.contains(&s.id),
             view_count: s.view_count.unwrap_or(0) as i64,
@@ -2308,6 +2394,7 @@ async fn library_page(
             composer: song.composer.unwrap_or_default(),
             artistas: song.artistas.unwrap_or_default(),
             org_key: song.org_key.unwrap_or_default(),
+            org_tempo: song.org_tempo,
             youtube: song.youtube.filter(|url| !url.trim().is_empty()),
             favorite: fav_ids.contains(&song.id),
             view_count: song.view_count.unwrap_or(0) as i64,
@@ -2403,6 +2490,7 @@ async fn pending_page(Extension(pool): Extension<PgPool>, jar: CookieJar) -> imp
             composer: s.composer.unwrap_or_default(),
             artistas: s.artistas.unwrap_or_default(),
             org_key: s.org_key.unwrap_or_default(),
+            org_tempo: s.org_tempo,
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: fav_ids.contains(&s.id),
             view_count: s.view_count.unwrap_or(0) as i64,
@@ -2494,6 +2582,7 @@ async fn search_songs(
             composer: String::new(),
             artistas: artistas.unwrap_or_default(),
             org_key: String::new(),
+            org_tempo: None,
             youtube: None,
             favorite: false,
             view_count: 0,
@@ -2661,6 +2750,7 @@ async fn search_songs_htmx(
             composer: s.composer.unwrap_or_default(),
             artistas: s.artistas.unwrap_or_default(),
             org_key: s.org_key.unwrap_or_default(),
+            org_tempo: s.org_tempo,
             youtube: s.youtube.filter(|url| !url.trim().is_empty()),
             favorite: fav_ids.contains(&s.id) || fav_filter_active,
             view_count: s.view_count.unwrap_or(0) as i64,
